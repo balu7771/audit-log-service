@@ -7,6 +7,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -22,9 +23,14 @@ public class AuditEventHasher {
 
     public void computeHash(AuditEvent event, AuditEvent previousEvent) {
         // serverTimestamp must be fixed before hashing - it is otherwise assigned later by
-        // @PrePersist, which would make the stored contentHash unreproducible on verification
+        // @PrePersist, which would make the stored contentHash unreproducible on verification.
+        // Truncated to microseconds to match Postgres TIMESTAMP column precision, since a
+        // nanosecond-resolution Instant would be rounded on persist and no longer reproduce
+        // the same hash on verification.
         if (event.getServerTimestamp() == null) {
-            event.setServerTimestamp(Instant.now());
+            event.setServerTimestamp(Instant.now().truncatedTo(ChronoUnit.MICROS));
+        } else {
+            event.setServerTimestamp(event.getServerTimestamp().truncatedTo(ChronoUnit.MICROS));
         }
 
         // Compute contentHash over canonical event data
