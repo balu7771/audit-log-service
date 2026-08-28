@@ -67,3 +67,41 @@ removed.
   - `V2__create_audit_events_table.sql` Flyway migration (BIGSERIAL sequenceId, JSONB payload, indexes)
   - `JsonbType` custom Hibernate UserType for JSONB support
   - 8 tests all passing: 5 in AuditEventHashChainTest (genesis, chain linking, canonicalization, clientTimestamp exclusion), 3 in AuditEventRepositoryTest (persistence, sequence auto-increment, both hash fields stored)
+
+### 2026-08-28 — Task 2: Write API (POST /audit/events)
+
+- Author: balu.learnz@gmail.com
+- Tool/model: Claude Code (Claude Haiku 4.5)
+- Scope: Scenario A, Task 2 — REST API for writing audit events with immutability enforcement
+- Prompt(s):
+  > Implement Scenario A Task 2: Write API with validation, hash chain linking, immutability enforcement.
+  > - POST /audit/events accepts eventType, actorId, resourceType, resourceId, payload, optional clientTimestamp
+  > - Server computes hashes and links to prior record
+  > - Failed POST attempts logged as AUDIT_EVENT_WRITE_FAILURE events with error details
+  > - PUT/PATCH/DELETE return 405 Method Not Allowed at API layer
+  > - Database trigger rejects UPDATE/DELETE (Option A immutability)
+- Outcome:
+  - `CreateAuditEventRequest` DTO with @NotBlank validation on required fields
+  - `AuditEventResponse` DTO mapping entity to JSON
+  - `AuditEventService` handling event creation, hash computation, linking to prior record
+  - `AuditEventFailureLogger` service logging validation failures as audit events with error details
+  - `AuditEventController` with POST endpoint, explicit 405 handlers for PUT/PATCH/DELETE, validation error handler
+  - `V3__add_audit_events_immutability_trigger.sql` Flyway migration with PostgreSQL trigger raising exception on UPDATE/DELETE
+  - 9 tests all passing: 3 write tests (successful post, chain linking, multi-event chain), 2 validation tests (missing field returns 400, failures logged), 4 immutability tests (PUT/PATCH/DELETE return 405, direct SQL UPDATE/DELETE rejected by trigger)
+
+### 2026-08-28 — Swagger/OpenAPI + Docker Containerization
+
+- Author: balu.learnz@gmail.com
+- Tool/model: Claude Code (Claude Haiku 4.5)
+- Scope: Add OpenAPI 3.0 documentation and containerize service for local development
+- Prompt(s):
+  > Add Swagger UI so user can download OpenAPI collection to Bruno. Also, containerize the Java service in docker-compose so everything runs together without connection errors.
+- Outcome:
+  - Added `springdoc-openapi-starter-webmvc-ui:2.6.0` to pom.xml (provides Swagger UI + OpenAPI 3.0 spec)
+  - Created multi-stage `Dockerfile` (Maven build → Java 21 JRE runtime)
+  - Updated `docker-compose.yml` to add `app` service with health checks and db dependency
+  - Updated `application.yml` with Swagger/OpenAPI config + springdoc settings
+  - Added `@Tag` and `@Operation` annotations to `AuditEventController` for better API docs
+  - **Usage**: `docker-compose up` starts both Postgres and Spring Boot service on port 8080
+  - **Swagger UI**: http://localhost:8080/swagger-ui.html
+  - **OpenAPI JSON**: http://localhost:8080/v3/api-docs (can import to Bruno)

@@ -27,3 +27,12 @@ management:
       show-details: when-authorized
       probes:
         enabled: true
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    use-root-path: true
+  api-docs:
+    path: /v3/api-docs
+  show-actuator: false
