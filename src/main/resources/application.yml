@@ -1,0 +1,29 @@
+spring:
+  application:
+    name: audit-log-service
+  datasource:
+    url: jdbc:postgresql://localhost:5432/auditlog
+    username: auditlog
+    password: auditlog
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: false
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when-authorized
+      probes:
+        enabled: true

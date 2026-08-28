@@ -1,0 +1,8 @@
+spring:
+  jpa:
+    show-sql: false
+
+logging:
+  level:
+    org.testcontainers: INFO
+    com.persistent.auditlog: DEBUG
