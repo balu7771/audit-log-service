@@ -66,7 +66,9 @@ public class AuditEventHasher {
     private String toCanonicalJson(Map<String, Object> data) {
         try {
             com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            mapper.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
             mapper.configure(com.fasterxml.jackson.databind.SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
+            mapper.configure(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
             return mapper.writeValueAsString(data);
         } catch (Exception e) {
             throw new RuntimeException("Failed to serialize to canonical JSON", e);

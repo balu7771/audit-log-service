@@ -25,14 +25,18 @@ public class AuditEventFailureLogger {
         Map<String, Object> failurePayload = new HashMap<>();
         failurePayload.put("errorCode", errorCode);
         failurePayload.put("errorMessage", errorMessage);
-        failurePayload.put("originalRequest", originalRequest);
+        if (originalRequest != null) {
+            failurePayload.put("originalRequest", originalRequest);
+        }
         failurePayload.put("timestamp", System.currentTimeMillis());
 
+        String eventType = "CHAIN_VIOLATION".equals(errorCode) ? "AUDIT_CHAIN_VIOLATION" : "AUDIT_EVENT_WRITE_FAILURE";
+
         AuditEvent failureEvent = AuditEvent.builder()
-            .eventType("AUDIT_EVENT_WRITE_FAILURE")
+            .eventType(eventType)
             .actorId("system")
             .resourceType("AUDIT_CONTROL")
-            .resourceId("write-attempt")
+            .resourceId("verification-result")
             .payload(toJson(failurePayload))
             .build();
 
