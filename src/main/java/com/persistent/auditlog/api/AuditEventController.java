@@ -2,6 +2,7 @@ package com.persistent.auditlog.api;
 
 import com.persistent.auditlog.domain.AuditEvent;
 import com.persistent.auditlog.service.AuditEventFailureLogger;
+import com.persistent.auditlog.service.AuditEventQueryService;
 import com.persistent.auditlog.service.AuditEventService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -11,10 +12,13 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.Instant;
 
 @RestController
 @RequestMapping("/audit/events")
@@ -23,6 +27,7 @@ import org.springframework.web.bind.annotation.*;
 public class AuditEventController {
 
     private final AuditEventService auditEventService;
+    private final AuditEventQueryService auditEventQueryService;
     private final AuditEventFailureLogger failureLogger;
 
     @PostMapping
@@ -36,6 +41,31 @@ public class AuditEventController {
     public ResponseEntity<AuditEventResponse> createAuditEvent(@Valid @RequestBody CreateAuditEventRequest request) {
         AuditEvent savedEvent = auditEventService.createAuditEvent(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(AuditEventResponse.fromEntity(savedEvent));
+    }
+
+    @GetMapping
+    @Operation(summary = "Query audit events", description = "Query audit events with optional filters and pagination")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Query successful",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = PaginatedAuditEventsResponse.class))),
+        @ApiResponse(responseCode = "400", description = "Invalid query parameters"),
+        @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    public ResponseEntity<PaginatedAuditEventsResponse> queryAuditEvents(
+            @RequestParam(required = false) String actorId,
+            @RequestParam(required = false) String resourceType,
+            @RequestParam(required = false) String resourceId,
+            @RequestParam(required = false) String eventType,
+            @RequestParam(required = false) Instant from,
+            @RequestParam(required = false) Instant to,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+
+        Page<AuditEvent> results = auditEventQueryService.queryAuditEvents(
+            actorId, resourceType, resourceId, eventType, from, to, page, size);
+
+        Page<AuditEventResponse> responsePage = results.map(AuditEventResponse::fromEntity);
+        return ResponseEntity.ok(PaginatedAuditEventsResponse.fromPage(responsePage));
     }
 
     @PutMapping("/{id}")
@@ -66,5 +96,10 @@ public class AuditEventController {
         failureLogger.logValidationFailure("VALIDATION_ERROR", errorMessage, null);
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Validation error: " + errorMessage);
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<String> handleIllegalArgumentException(IllegalArgumentException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid request: " + ex.getMessage());
     }
 }

@@ -105,3 +105,22 @@ removed.
   - **Usage**: `docker-compose up` starts both Postgres and Spring Boot service on port 8080
   - **Swagger UI**: http://localhost:8080/swagger-ui.html
   - **OpenAPI JSON**: http://localhost:8080/v3/api-docs (can import to Bruno)
+
+### 2026-08-28 — Task 3: Query API (GET /audit/events)
+
+- Author: balu.learnz@gmail.com
+- Tool/model: Claude Code (Claude Haiku 4.5)
+- Scope: Scenario A, Task 3 — Filterable query API with pagination
+- Prompt(s):
+  > Implement Scenario A Task 3: Query API with filtering and pagination. Follow TDD workflow.
+  > - GET /audit/events with optional filters: actorId, resourceType, resourceId, eventType, from/to timestamps
+  > - Page-based pagination (page, size; default page=0, size=20, max=100)
+  > - Default sort: sequenceId DESC (newest first)
+  > - Validation: resourceId requires resourceType, page size ≤ 100
+- Outcome:
+  - Extended `AuditEventRepository` with `JpaSpecificationExecutor<AuditEvent>` for dynamic queries
+  - `AuditEventQueryService` with Specifications builder for composable AND-logic filtering
+  - `PaginatedAuditEventsResponse` DTO with `PageableInfo` for paginated results
+  - GET endpoint in `AuditEventController` accepting all query params
+  - Exception handler for `IllegalArgumentException` (validation errors) → 400 Bad Request
+  - 11 tests all passing: default pagination, filter alone (actorId, eventType, resourceType+resourceId, time range), combined filters, pagination accuracy (page/size/total), ordering (DESC), empty results, validation (resourceId without resourceType, page size > 100)
