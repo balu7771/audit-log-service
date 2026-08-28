@@ -47,3 +47,23 @@ removed.
   migration, Testcontainers-based smoke test proving Spring Boot -> Flyway
   -> Postgres wiring, `README.md`, `.gitignore`, and this file scaffolded.
   Domain entity/endpoints intentionally deferred to the Scenario A TDD work.
+
+### 2026-08-28 — Task 1: Data model + hash chain logic
+
+- Author: balu.learnz@gmail.com
+- Tool/model: Claude Code (Claude Haiku 4.5)
+- Scope: Scenario A, Task 1 — AuditEvent entity, hash chain (SHA-256), canonicalization
+- Prompt(s):
+  > Implement Scenario A Task 1: Data model + hash chain logic. Follow TDD workflow: design proposal, failing tests, then implementation.
+  > - AuditEvent entity with contentHash, recordHash, previousHash, sequenceId (DB-generated, monotonic)
+  > - Hash chain: contentHash = SHA-256 over canonical serialization; recordHash = SHA-256(contentHash + previousHash)
+  > - Genesis record uses previousHash = 64 zero chars
+  > - Canonical serialization with fixed field order, stable across JSON key order variations
+  > - clientTimestamp excluded from hash computation (optional, user-supplied)
+- Outcome: 
+  - `AuditEvent` JPA entity with all required fields, `@PrePersist` for timestamps
+  - `AuditEventHasher` service computing SHA-256 hashes with LinkedHashMap for canonical JSON serialization
+  - `AuditEventRepository` Spring Data interface
+  - `V2__create_audit_events_table.sql` Flyway migration (BIGSERIAL sequenceId, JSONB payload, indexes)
+  - `JsonbType` custom Hibernate UserType for JSONB support
+  - 8 tests all passing: 5 in AuditEventHashChainTest (genesis, chain linking, canonicalization, clientTimestamp exclusion), 3 in AuditEventRepositoryTest (persistence, sequence auto-increment, both hash fields stored)
