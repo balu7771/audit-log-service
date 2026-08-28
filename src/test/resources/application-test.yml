@@ -2,6 +2,10 @@ spring:
   jpa:
     show-sql: false
 
+audit:
+  security:
+    api-key: test-api-key
+
 logging:
   level:
     org.testcontainers: INFO

@@ -10,7 +10,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -34,7 +33,7 @@ class AuditChainVerificationTest extends AbstractIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders.webAppContextSetup(context).build();
+        mockMvc = authenticatedMockMvc(context);
         jdbcTemplate.execute("TRUNCATE TABLE audit_events RESTART IDENTITY");
     }
 
@@ -51,7 +50,7 @@ class AuditChainVerificationTest extends AbstractIntegrationTest {
         // Create valid chain of 3 events
         createValidChain(3);
 
-        mockMvc.perform(get("/audit/events/verify"))
+        mockMvc.perform(get("/audit/verify"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.intact").value(true))
             .andExpect(jsonPath("$.totalRecords").value(3))
@@ -61,7 +60,7 @@ class AuditChainVerificationTest extends AbstractIntegrationTest {
 
     @Test
     void testVerifyEmptyChainReturnsTrue() throws Exception {
-        mockMvc.perform(get("/audit/events/verify"))
+        mockMvc.perform(get("/audit/verify"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.intact").value(true))
             .andExpect(jsonPath("$.totalRecords").value(0));
@@ -77,7 +76,7 @@ class AuditChainVerificationTest extends AbstractIntegrationTest {
         jdbcTemplate.execute("UPDATE audit_events SET payload = '{\"corrupted\": true}' WHERE sequence_id = 2");
         enableTrigger();
 
-        mockMvc.perform(get("/audit/events/verify"))
+        mockMvc.perform(get("/audit/verify"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.intact").value(false))
             .andExpect(jsonPath("$.violation.sequenceId").value(2))
@@ -94,7 +93,7 @@ class AuditChainVerificationTest extends AbstractIntegrationTest {
         jdbcTemplate.execute("UPDATE audit_events SET record_hash = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' WHERE sequence_id = 2");
         enableTrigger();
 
-        mockMvc.perform(get("/audit/events/verify"))
+        mockMvc.perform(get("/audit/verify"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.intact").value(false))
             .andExpect(jsonPath("$.violation.sequenceId").value(2))
@@ -111,7 +110,7 @@ class AuditChainVerificationTest extends AbstractIntegrationTest {
         jdbcTemplate.execute("UPDATE audit_events SET previous_hash = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' WHERE sequence_id = 3");
         enableTrigger();
 
-        mockMvc.perform(get("/audit/events/verify"))
+        mockMvc.perform(get("/audit/verify"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.intact").value(false))
             .andExpect(jsonPath("$.violation.sequenceId").value(3))
@@ -126,7 +125,7 @@ class AuditChainVerificationTest extends AbstractIntegrationTest {
         jdbcTemplate.execute("DELETE FROM audit_events WHERE sequence_id = 2");
         enableTrigger();
 
-        mockMvc.perform(get("/audit/events/verify"))
+        mockMvc.perform(get("/audit/verify"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.intact").value(false))
             .andExpect(jsonPath("$.violation.sequenceId").value(3))
@@ -140,7 +139,7 @@ class AuditChainVerificationTest extends AbstractIntegrationTest {
         createValidChain(5);
 
         // Verify last 2 records only
-        mockMvc.perform(get("/audit/events/verify?lastN=2"))
+        mockMvc.perform(get("/audit/verify?lastN=2"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.intact").value(true))
             .andExpect(jsonPath("$.totalRecords").value(5))
@@ -158,7 +157,7 @@ class AuditChainVerificationTest extends AbstractIntegrationTest {
         jdbcTemplate.execute("UPDATE audit_events SET payload = '{\"corrupted\": true}' WHERE sequence_id = 5");
         enableTrigger();
 
-        mockMvc.perform(get("/audit/events/verify?lastN=2"))
+        mockMvc.perform(get("/audit/verify?lastN=2"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.intact").value(false))
             .andExpect(jsonPath("$.violation.sequenceId").value(5));
@@ -174,7 +173,7 @@ class AuditChainVerificationTest extends AbstractIntegrationTest {
         jdbcTemplate.execute("UPDATE audit_events SET payload = '{\"corrupted\": true}' WHERE sequence_id = 2");
         enableTrigger();
 
-        mockMvc.perform(get("/audit/events/verify?lastN=2"))
+        mockMvc.perform(get("/audit/verify?lastN=2"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.intact").value(true));
     }
@@ -189,7 +188,7 @@ class AuditChainVerificationTest extends AbstractIntegrationTest {
         jdbcTemplate.execute("UPDATE audit_events SET payload = '{\"corrupted\": true}' WHERE sequence_id = 2");
         enableTrigger();
 
-        mockMvc.perform(get("/audit/events/verify"))
+        mockMvc.perform(get("/audit/verify"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.intact").value(false));
 

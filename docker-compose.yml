@@ -26,6 +26,8 @@ services:
       SPRING_DATASOURCE_USERNAME: auditlog
       SPRING_DATASOURCE_PASSWORD: auditlog
       SPRING_JPA_HIBERNATE_DDL_AUTO: validate
+      # Example only — replace with a real secret for anything beyond local dev.
+      AUDIT_API_KEY: local-compose-key-change-me
     ports:
       - "8080:8080"
     depends_on:

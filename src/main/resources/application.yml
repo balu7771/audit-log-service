@@ -17,6 +17,13 @@ spring:
 server:
   port: 8080
 
+audit:
+  security:
+    # Shared-secret required on every /audit/** request via the X-API-Key header.
+    # Override via AUDIT_API_KEY in any real deployment; the fallback below is
+    # for local docker-compose/dev use only.
+    api-key: ${AUDIT_API_KEY:local-dev-only-key-change-me}
+
 management:
   endpoints:
     web:

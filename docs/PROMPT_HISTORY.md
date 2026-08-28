@@ -139,3 +139,48 @@ removed.
   - Fixed 2 stale-by-accident assertions in `AuditEventHashChainTest` (`testCanonicalSerializationIsStable`, `testClientTimestampExcludedFromContentHash`): they compared hashes of two independently-built events and only passed because both previously hashed against a `null` serverTimestamp; now pinned to an explicit shared `serverTimestamp` so they test what they claim to.
   - Fixed a latent Testcontainers bug in `AbstractIntegrationTest`: the static `@Container` field, inherited by every integration test class, was stopped by JUnit's `@Testcontainers` extension after the first test class ran, breaking every class after it when running the full suite (`Connection refused`). Switched to the singleton-container pattern (start once in a static block, register connection properties via `@DynamicPropertySource`, no `@Testcontainers`/`@Container` lifecycle management).
   - All 38 tests across 5 test classes pass via `./mvnw test`.
+
+### 2026-08-28 — PRD gap analysis + fixes: verify path, README, API-key auth
+
+- Author: balu.learnz@gmail.com
+- Tool/model: Claude Code (Claude Sonnet 5)
+- Scope: Compare implementation against PRD §5 Scenario A, produce C4
+  diagrams + gap analysis, then fix the path deviation, stale README, and
+  missing-auth gaps the analysis surfaced.
+- Prompt(s):
+  > given the PRD at @docs/prd/... , particularly for the scenario A,
+  > described in section 5. Scan the code of audit-log-service. Compare
+  > what's actually built against the PRD and give your findings.
+  > Assumptions and trade-offs done if any. Also produce a C4 architecture
+  > diagram and store within docs directory in the repo.
+  > can you fix point 2, 4 and 6. Also, create a document within
+  > architecture for the tradeoffs and assumptions.
+- Outcome:
+  - Wrote `docs/architecture/C4-diagram.md` (Context/Container/Component
+    Mermaid diagrams) and `docs/architecture/PRD-COMPLIANCE.md`
+    (requirement-by-requirement gap analysis) reviewing the code as it stood
+    (commit `2295111`).
+  - Gap analysis found: verify endpoint at `/audit/events/verify` instead of
+    the PRD's literal `GET /audit/verify`; `README.md` still describing the
+    project as an unimplemented skeleton; no authentication on any endpoint;
+    malformed-JSON `payload` surfacing as an unhandled 500; and the
+    immutability trigger blocking the PRD's own "tamper directly in the data
+    store" validation step unless disabled first (undocumented).
+  - Fixed the path deviation: added `AuditChainController` at `/audit`
+    exposing `GET /audit/verify`; removed the old nested mapping from
+    `AuditEventController`.
+  - Fixed the stale README: rewritten with current API surface, the new
+    auth requirement, and a manual validation walkthrough that documents the
+    `ALTER TABLE ... DISABLE/ENABLE TRIGGER` step needed to actually exercise
+    tamper detection against the immutability trigger.
+  - Added a lightweight `ApiKeyAuthFilter` (shared-secret `X-API-Key` header,
+    checked against `audit.security.api-key`, default overridable via
+    `AUDIT_API_KEY`) gating all `/audit/**` requests; actuator/Swagger stay
+    open. Added `authenticatedMockMvc()` helper to `AbstractIntegrationTest`
+    so existing tests didn't need per-call header changes, plus a new
+    `ApiKeyAuthFilterTest` (4 tests) covering missing/wrong/correct key and
+    that actuator health stays ungated.
+  - Wrote `docs/architecture/ASSUMPTIONS-AND-TRADEOFFS.md` as the dedicated
+    assumptions/trade-offs doc, and trimmed the duplicated content out of
+    `PRD-COMPLIANCE.md` in favor of pointing to it.
+  - All 42 tests across 7 test classes pass via `./mvnw verify`.

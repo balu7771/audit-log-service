@@ -1,7 +1,6 @@
 package com.persistent.auditlog.api;
 
 import com.persistent.auditlog.domain.AuditEvent;
-import com.persistent.auditlog.service.AuditEventChainVerificationService;
 import com.persistent.auditlog.service.AuditEventFailureLogger;
 import com.persistent.auditlog.service.AuditEventQueryService;
 import com.persistent.auditlog.service.AuditEventService;
@@ -29,7 +28,6 @@ public class AuditEventController {
 
     private final AuditEventService auditEventService;
     private final AuditEventQueryService auditEventQueryService;
-    private final AuditEventChainVerificationService auditEventChainVerificationService;
     private final AuditEventFailureLogger failureLogger;
 
     @PostMapping
@@ -86,20 +84,6 @@ public class AuditEventController {
     public ResponseEntity<String> deleteNotAllowed() {
         return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
             .body("DELETE is not allowed on audit events - they are immutable");
-    }
-
-    @GetMapping("/verify")
-    @Operation(summary = "Verify chain integrity", description = "Verify the entire audit event chain or last N records")
-    @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Verification complete",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = VerificationResponse.class))),
-        @ApiResponse(responseCode = "400", description = "Invalid parameters"),
-        @ApiResponse(responseCode = "500", description = "Internal server error")
-    })
-    public ResponseEntity<VerificationResponse> verifyChain(
-            @RequestParam(required = false) Integer lastN) {
-        VerificationResponse result = auditEventChainVerificationService.verifyChain(java.util.Optional.ofNullable(lastN));
-        return ResponseEntity.ok(result);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

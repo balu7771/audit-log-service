@@ -19,8 +19,8 @@ C4Context
 
     System(als, "Audit Log Service", "Records an append-only, tamper-evident history of events; exposes write, query, and chain-verification APIs")
 
-    Rel(sourceSystems, als, "Writes audit events", "HTTPS/JSON — POST /audit/events")
-    Rel(reviewer, als, "Queries events, verifies chain", "HTTPS/JSON — GET /audit/events, GET /audit/events/verify")
+    Rel(sourceSystems, als, "Writes audit events", "HTTPS/JSON — POST /audit/events (X-API-Key required)")
+    Rel(reviewer, als, "Queries events, verifies chain", "HTTPS/JSON — GET /audit/events, GET /audit/verify (X-API-Key required)")
 ```
 
 ## Level 2 — Containers
@@ -48,7 +48,9 @@ C4Component
     title Component Diagram — Spring Boot Application
 
     Container_Boundary(api, "Spring Boot Application") {
-        Component(controller, "AuditEventController", "@RestController", "POST /audit/events, GET /audit/events, GET /audit/events/verify. Returns 405 for PUT/PATCH/DELETE on the events resource.")
+        Component(authFilter, "ApiKeyAuthFilter", "Servlet Filter", "Gates every /audit/** request behind a static X-API-Key shared secret before it reaches any controller. Actuator/Swagger are exempt.")
+        Component(controller, "AuditEventController", "@RestController", "POST /audit/events, GET /audit/events. Returns 405 for PUT/PATCH/DELETE on the events resource.")
+        Component(chainController, "AuditChainController", "@RestController", "GET /audit/verify — kept as a separate top-level resource so the path matches the PRD exactly, rather than nesting under /audit/events.")
         Component(eventService, "AuditEventService", "@Service", "Builds a new AuditEvent, looks up the last record for chain linkage, delegates hashing, persists.")
         Component(queryService, "AuditEventQueryService", "@Service", "Builds a composable JPA Specification from actorId/resourceType/resourceId/eventType/from/to and paginates.")
         Component(verifyService, "AuditEventChainVerificationService", "@Service", "Walks the full chain (or last N), recomputes each contentHash/recordHash, and reports the first violation found — sequence gap, content/record/previous-hash mismatch.")
@@ -59,9 +61,11 @@ C4Component
 
     ContainerDb(db, "PostgreSQL 16", "audit_events + immutability trigger")
 
+    Rel(authFilter, controller, "passes through on valid X-API-Key")
+    Rel(authFilter, chainController, "passes through on valid X-API-Key")
     Rel(controller, eventService, "createAuditEvent(request)")
     Rel(controller, queryService, "queryAuditEvents(filters, page)")
-    Rel(controller, verifyService, "verifyChain(lastN)")
+    Rel(chainController, verifyService, "verifyChain(lastN)")
     Rel(controller, failureLogger, "logValidationFailure() on 400")
     Rel(eventService, hasher, "computeHash(event, previous)")
     Rel(eventService, repository, "findAll() / save()")
