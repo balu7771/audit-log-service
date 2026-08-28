@@ -124,3 +124,18 @@ removed.
   - GET endpoint in `AuditEventController` accepting all query params
   - Exception handler for `IllegalArgumentException` (validation errors) → 400 Bad Request
   - 11 tests all passing: default pagination, filter alone (actorId, eventType, resourceType+resourceId, time range), combined filters, pagination accuracy (page/size/total), ordering (DESC), empty results, validation (resourceId without resourceType, page size > 100)
+
+### 2026-08-28 — Task 4: Chain verification API (GET /audit/events/verify)
+
+- Author: balu.learnz@gmail.com
+- Tool/model: Claude Code (Claude Sonnet 5)
+- Scope: Scenario A, Task 4 — verify chain integrity, `AuditChainVerificationTest` was already scaffolded (10 tests) and mostly failing
+- Prompt(s):
+  > lets proceed with completing Task 4, the verify chain endpoint. Check the test cases before doing. Most of them already created. Needs completion and prompt addition.
+- Outcome:
+  - Fixed `AuditEventHasher.computeHash`: `serverTimestamp` was being hashed while still `null` (it was only populated later by `@PrePersist`), so every stored `contentHash` was unreproducible on verification — now `serverTimestamp` is fixed before hashing.
+  - Rewrote `AuditEventChainVerificationService.verifyChain`: fixed an `IndexOutOfBoundsException` when verifying the first record of a `lastN` window (was indexing into the windowed sublist instead of the full list for the prior record), and collapsed the four near-duplicate violation-building blocks into one `recordViolation` helper. Removed unused `computeSha256` method.
+  - Fixed 3 wrong test URLs in `AuditChainVerificationTest` (`/audit/verify` → `/audit/events/verify`).
+  - Fixed 2 stale-by-accident assertions in `AuditEventHashChainTest` (`testCanonicalSerializationIsStable`, `testClientTimestampExcludedFromContentHash`): they compared hashes of two independently-built events and only passed because both previously hashed against a `null` serverTimestamp; now pinned to an explicit shared `serverTimestamp` so they test what they claim to.
+  - Fixed a latent Testcontainers bug in `AbstractIntegrationTest`: the static `@Container` field, inherited by every integration test class, was stopped by JUnit's `@Testcontainers` extension after the first test class ran, breaking every class after it when running the full suite (`Connection refused`). Switched to the singleton-container pattern (start once in a static block, register connection properties via `@DynamicPropertySource`, no `@Testcontainers`/`@Container` lifecycle management).
+  - All 38 tests across 5 test classes pass via `./mvnw test`.

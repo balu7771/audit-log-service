@@ -59,6 +59,9 @@ class AuditEventHashChainTest extends AbstractIntegrationTest {
 
     @Test
     void testCanonicalSerializationIsStable() {
+        // Pin serverTimestamp so it doesn't vary between the two events under comparison
+        java.time.Instant fixedTimestamp = java.time.Instant.now();
+
         // Create event with fields in one order
         AuditEvent event1 = AuditEvent.builder()
             .eventType("USER_LOGIN")
@@ -66,6 +69,7 @@ class AuditEventHashChainTest extends AbstractIntegrationTest {
             .resourceType("USER")
             .resourceId("resource-1")
             .payload("{\"z\": 1, \"a\": 2}")
+            .serverTimestamp(fixedTimestamp)
             .build();
 
         auditEventHasher.computeHash(event1, null);
@@ -78,6 +82,7 @@ class AuditEventHashChainTest extends AbstractIntegrationTest {
             .resourceType("USER")
             .resourceId("resource-1")
             .payload("{\"a\": 2, \"z\": 1}")
+            .serverTimestamp(fixedTimestamp)
             .build();
 
         auditEventHasher.computeHash(event2, null);
@@ -89,12 +94,16 @@ class AuditEventHashChainTest extends AbstractIntegrationTest {
 
     @Test
     void testClientTimestampExcludedFromContentHash() {
+        // Pin serverTimestamp so it doesn't vary between the two events under comparison
+        java.time.Instant fixedTimestamp = java.time.Instant.now();
+
         AuditEvent event1 = AuditEvent.builder()
             .eventType("USER_LOGIN")
             .actorId("actor-1")
             .resourceType("USER")
             .resourceId("resource-1")
             .payload("{\"details\": \"test\"}")
+            .serverTimestamp(fixedTimestamp)
             .clientTimestamp(null)
             .build();
 
@@ -108,6 +117,7 @@ class AuditEventHashChainTest extends AbstractIntegrationTest {
             .resourceType("USER")
             .resourceId("resource-1")
             .payload("{\"details\": \"test\"}")
+            .serverTimestamp(fixedTimestamp)
             .clientTimestamp(java.time.Instant.now())
             .build();
 

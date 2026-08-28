@@ -16,6 +16,8 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class AuditEventChainVerificationService {
 
+    private static final String GENESIS_PREVIOUS_HASH = "0000000000000000000000000000000000000000000000000000000000000000";
+
     private final AuditEventRepository auditEventRepository;
     private final AuditEventHasher auditEventHasher;
     private final AuditEventFailureLogger failureLogger;
@@ -34,133 +36,81 @@ public class AuditEventChainVerificationService {
                 .build();
         }
 
-        // Determine which events to verify
-        List<AuditEvent> eventsToVerify = allEvents;
         int startIndex = 0;
         if (lastN.isPresent() && lastN.get() < allEvents.size()) {
             startIndex = allEvents.size() - lastN.get();
-            eventsToVerify = allEvents.subList(startIndex, allEvents.size());
         }
+        List<AuditEvent> eventsToVerify = allEvents.subList(startIndex, allEvents.size());
 
-        // Verify chain
         for (int i = 0; i < eventsToVerify.size(); i++) {
             AuditEvent event = eventsToVerify.get(i);
             int originalIndex = startIndex + i;
+            AuditEvent priorEvent = originalIndex > 0 ? allEvents.get(originalIndex - 1) : null;
 
-            // Check sequence continuity
-            if (i == 0 && lastN.isEmpty()) {
-                // First event should have sequence_id = 1
-                if (event.getSequenceId() != 1) {
-                    VerificationResponse.ViolationDetail violation = VerificationResponse.ViolationDetail.builder()
-                        .sequenceId(event.getSequenceId())
-                        .violationType("SEQUENCE_GAP")
-                        .details("Expected sequence_id 1, but found " + event.getSequenceId())
-                        .build();
-                    VerificationResponse response = VerificationResponse.builder()
-                        .intact(false)
-                        .totalRecords(totalRecords)
-                        .lastVerifiedSequenceId(originalIndex > 0 ? allEvents.get(originalIndex - 1).getSequenceId() : null)
-                        .verifiedRecordsCount(i)
-                        .violation(violation)
-                        .build();
-                    logViolation(violation);
-                    return response;
-                }
-            } else if (i > 0) {
-                // Check sequence continuity
-                AuditEvent prevEvent = eventsToVerify.get(i - 1);
-                if (event.getSequenceId() != prevEvent.getSequenceId() + 1) {
-                    VerificationResponse.ViolationDetail violation = VerificationResponse.ViolationDetail.builder()
-                        .sequenceId(event.getSequenceId())
-                        .violationType("SEQUENCE_GAP")
-                        .details("Expected sequence_id " + (prevEvent.getSequenceId() + 1) + ", but found " + event.getSequenceId())
-                        .build();
-                    VerificationResponse response = VerificationResponse.builder()
-                        .intact(false)
-                        .totalRecords(totalRecords)
-                        .lastVerifiedSequenceId(prevEvent.getSequenceId())
-                        .verifiedRecordsCount(i)
-                        .violation(violation)
-                        .build();
-                    logViolation(violation);
-                    return response;
-                }
+            // Sequence continuity
+            long expectedSequenceId = priorEvent != null ? priorEvent.getSequenceId() + 1 : 1L;
+            if (event.getSequenceId() != expectedSequenceId) {
+                return recordViolation(totalRecords, priorEvent, i, VerificationResponse.ViolationDetail.builder()
+                    .sequenceId(event.getSequenceId())
+                    .violationType("SEQUENCE_GAP")
+                    .details("Expected sequence_id " + expectedSequenceId + ", but found " + event.getSequenceId())
+                    .build());
             }
 
-            // Verify contentHash by recomputing
+            // contentHash - recomputed from the stored payload/fields
             String computedContentHash = computeContentHash(event);
-
             if (!computedContentHash.equals(event.getContentHash())) {
-                VerificationResponse.ViolationDetail violation = VerificationResponse.ViolationDetail.builder()
+                return recordViolation(totalRecords, priorEvent, i, VerificationResponse.ViolationDetail.builder()
                     .sequenceId(event.getSequenceId())
                     .violationType("CONTENT_HASH_MISMATCH")
                     .expectedValue(computedContentHash)
                     .actualValue(event.getContentHash())
                     .details("Payload or other content was modified")
-                    .build();
-                VerificationResponse response = VerificationResponse.builder()
-                    .intact(false)
-                    .totalRecords(totalRecords)
-                    .lastVerifiedSequenceId(originalIndex > 0 ? allEvents.get(originalIndex - 1).getSequenceId() : null)
-                    .verifiedRecordsCount(i)
-                    .violation(violation)
-                    .build();
-                logViolation(violation);
-                return response;
+                    .build());
             }
 
-            // Verify recordHash
-            String expectedPreviousHash = i == 0 && lastN.isEmpty()
-                ? "0000000000000000000000000000000000000000000000000000000000000000"
-                : eventsToVerify.get(i - 1).getRecordHash();
-
+            // recordHash = SHA-256(contentHash + previousHash)
+            String expectedPreviousHash = priorEvent != null ? priorEvent.getRecordHash() : GENESIS_PREVIOUS_HASH;
             String computedRecordHash = computeRecordHash(event.getContentHash(), expectedPreviousHash);
             if (!computedRecordHash.equals(event.getRecordHash())) {
-                VerificationResponse.ViolationDetail violation = VerificationResponse.ViolationDetail.builder()
+                return recordViolation(totalRecords, priorEvent, i, VerificationResponse.ViolationDetail.builder()
                     .sequenceId(event.getSequenceId())
                     .violationType("RECORD_HASH_MISMATCH")
                     .expectedValue(computedRecordHash)
                     .actualValue(event.getRecordHash())
                     .details("Record hash does not match expected value")
-                    .build();
-                VerificationResponse response = VerificationResponse.builder()
-                    .intact(false)
-                    .totalRecords(totalRecords)
-                    .lastVerifiedSequenceId(originalIndex > 0 ? allEvents.get(originalIndex - 1).getSequenceId() : null)
-                    .verifiedRecordsCount(i)
-                    .violation(violation)
-                    .build();
-                logViolation(violation);
-                return response;
+                    .build());
             }
 
-            // Verify previousHash
+            // previousHash link to prior record
             if (!expectedPreviousHash.equals(event.getPreviousHash())) {
-                VerificationResponse.ViolationDetail violation = VerificationResponse.ViolationDetail.builder()
+                return recordViolation(totalRecords, priorEvent, i, VerificationResponse.ViolationDetail.builder()
                     .sequenceId(event.getSequenceId())
                     .violationType("PREVIOUS_HASH_MISMATCH")
                     .expectedValue(expectedPreviousHash)
                     .actualValue(event.getPreviousHash())
                     .details("Previous hash does not link to prior record")
-                    .build();
-                VerificationResponse response = VerificationResponse.builder()
-                    .intact(false)
-                    .totalRecords(totalRecords)
-                    .lastVerifiedSequenceId(originalIndex > 0 ? allEvents.get(originalIndex - 1).getSequenceId() : null)
-                    .verifiedRecordsCount(i)
-                    .violation(violation)
-                    .build();
-                logViolation(violation);
-                return response;
+                    .build());
             }
         }
 
-        // Chain is intact
         return VerificationResponse.builder()
             .intact(true)
             .totalRecords(totalRecords)
             .lastVerifiedSequenceId(allEvents.get(allEvents.size() - 1).getSequenceId())
             .verifiedRecordsCount(eventsToVerify.size())
+            .build();
+    }
+
+    private VerificationResponse recordViolation(long totalRecords, AuditEvent priorEvent, int verifiedCount,
+                                                  VerificationResponse.ViolationDetail violation) {
+        logViolation(violation);
+        return VerificationResponse.builder()
+            .intact(false)
+            .totalRecords(totalRecords)
+            .lastVerifiedSequenceId(priorEvent != null ? priorEvent.getSequenceId() : null)
+            .verifiedRecordsCount(verifiedCount)
+            .violation(violation)
             .build();
     }
 
@@ -185,7 +135,7 @@ public class AuditEventChainVerificationService {
     }
 
     private String computeContentHash(AuditEvent event) {
-        // Use the hasher to compute - create a temp event and compute its hash
+        // Recompute via the hasher using a detached copy so the stored hashes aren't mutated
         AuditEvent tempEvent = AuditEvent.builder()
             .eventType(event.getEventType())
             .actorId(event.getActorId())
@@ -195,20 +145,9 @@ public class AuditEventChainVerificationService {
             .serverTimestamp(event.getServerTimestamp())
             .build();
 
-        // Compute hash without linking (pass null as previous)
         auditEventHasher.computeHash(tempEvent, null);
 
         return tempEvent.getContentHash();
-    }
-
-    private String computeSha256(String input) {
-        try {
-            java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(input.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            return bytesToHex(hash);
-        } catch (java.security.NoSuchAlgorithmException e) {
-            throw new RuntimeException("SHA-256 not available", e);
-        }
     }
 
     private void logViolation(VerificationResponse.ViolationDetail violation) {
