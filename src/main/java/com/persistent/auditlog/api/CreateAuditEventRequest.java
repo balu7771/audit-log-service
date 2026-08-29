@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.Instant;
+import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -35,4 +36,11 @@ public class CreateAuditEventRequest {
 
     @JsonProperty("clientTimestamp")
     private Instant clientTimestamp;
+
+    // Optional top-level payload field names to encrypt at write time (crypto-
+    // shredding redaction scheme). Only fields declared here can later be
+    // redacted; nested field paths are not supported - a top-level field's
+    // entire value is encrypted as one unit.
+    @JsonProperty("sensitiveFields")
+    private List<String> sensitiveFields;
 }

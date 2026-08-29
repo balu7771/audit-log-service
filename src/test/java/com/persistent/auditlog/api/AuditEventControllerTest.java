@@ -34,7 +34,7 @@ class AuditEventControllerTest extends AbstractIntegrationTest {
     void setUp() {
         mockMvc = authenticatedMockMvc(context);
         objectMapper = new ObjectMapper();
-        jdbcTemplate.execute("TRUNCATE TABLE audit_events RESTART IDENTITY");
+        jdbcTemplate.execute("TRUNCATE TABLE audit_events RESTART IDENTITY CASCADE");
     }
 
     @Test

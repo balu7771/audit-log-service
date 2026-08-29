@@ -1,9 +1,9 @@
 package com.persistent.auditlog.api;
 
 import com.persistent.auditlog.domain.AuditEvent;
-import com.persistent.auditlog.service.AuditEventFailureLogger;
 import com.persistent.auditlog.service.AuditEventQueryService;
 import com.persistent.auditlog.service.AuditEventService;
+import com.persistent.auditlog.service.PayloadRedactionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -13,12 +13,13 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
+import java.util.List;
 
 @RestController
 @RequestMapping("/audit/events")
@@ -28,7 +29,7 @@ public class AuditEventController {
 
     private final AuditEventService auditEventService;
     private final AuditEventQueryService auditEventQueryService;
-    private final AuditEventFailureLogger failureLogger;
+    private final PayloadRedactionService payloadRedactionService;
 
     @PostMapping
     @Operation(summary = "Create audit event", description = "Create a new immutable audit event with hash chain linkage")
@@ -40,7 +41,7 @@ public class AuditEventController {
     })
     public ResponseEntity<AuditEventResponse> createAuditEvent(@Valid @RequestBody CreateAuditEventRequest request) {
         AuditEvent savedEvent = auditEventService.createAuditEvent(request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(AuditEventResponse.fromEntity(savedEvent));
+        return ResponseEntity.status(HttpStatus.CREATED).body(payloadRedactionService.renderForRead(savedEvent));
     }
 
     @GetMapping
@@ -58,13 +59,15 @@ public class AuditEventController {
             @RequestParam(required = false) String eventType,
             @RequestParam(required = false) Instant from,
             @RequestParam(required = false) Instant to,
+            @RequestParam(defaultValue = "false") boolean includeArchived,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
 
         Page<AuditEvent> results = auditEventQueryService.queryAuditEvents(
-            actorId, resourceType, resourceId, eventType, from, to, page, size);
+            actorId, resourceType, resourceId, eventType, from, to, includeArchived, page, size);
 
-        Page<AuditEventResponse> responsePage = results.map(AuditEventResponse::fromEntity);
+        List<AuditEventResponse> rendered = payloadRedactionService.renderPage(results.getContent());
+        Page<AuditEventResponse> responsePage = new PageImpl<>(rendered, results.getPageable(), results.getTotalElements());
         return ResponseEntity.ok(PaginatedAuditEventsResponse.fromPage(responsePage));
     }
 
@@ -84,22 +87,5 @@ public class AuditEventController {
     public ResponseEntity<String> deleteNotAllowed() {
         return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
             .body("DELETE is not allowed on audit events - they are immutable");
-    }
-
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<String> handleValidationException(MethodArgumentNotValidException ex) {
-        String errorMessage = ex.getBindingResult().getAllErrors().stream()
-            .map(error -> error.getDefaultMessage())
-            .findFirst()
-            .orElse("Validation failed");
-
-        failureLogger.logValidationFailure("VALIDATION_ERROR", errorMessage, null);
-
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Validation error: " + errorMessage);
-    }
-
-    @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<String> handleIllegalArgumentException(IllegalArgumentException ex) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid request: " + ex.getMessage());
     }
 }

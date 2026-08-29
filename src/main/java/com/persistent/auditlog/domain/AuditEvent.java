@@ -57,6 +57,13 @@ public class AuditEvent {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    @Column(name = "sensitive_fields")
+    @Type(JsonbType.class)
+    private String sensitiveFields;
+
+    @Column(name = "archived_at")
+    private Instant archivedAt;
+
     @PrePersist
     protected void onCreate() {
         if (serverTimestamp == null) {

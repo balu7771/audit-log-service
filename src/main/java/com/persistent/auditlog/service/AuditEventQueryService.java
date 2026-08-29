@@ -21,10 +21,11 @@ public class AuditEventQueryService {
 
     public Page<AuditEvent> queryAuditEvents(String actorId, String resourceType, String resourceId,
                                              String eventType, Instant from, Instant to,
+                                             boolean includeArchived,
                                              int page, int size) {
         validateQueryParams(resourceType, resourceId, size);
 
-        Specification<AuditEvent> spec = buildSpecification(actorId, resourceType, resourceId, eventType, from, to);
+        Specification<AuditEvent> spec = buildSpecification(actorId, resourceType, resourceId, eventType, from, to, includeArchived);
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "sequenceId"));
 
         return auditEventRepository.findAll(spec, pageable);
@@ -40,14 +41,20 @@ public class AuditEventQueryService {
     }
 
     private Specification<AuditEvent> buildSpecification(String actorId, String resourceType, String resourceId,
-                                                        String eventType, Instant from, Instant to) {
+                                                        String eventType, Instant from, Instant to,
+                                                        boolean includeArchived) {
         Specification<AuditEvent> spec = Specification.where(actorIdSpec(actorId))
             .and(resourceTypeSpec(resourceType))
             .and(resourceIdSpec(resourceId))
             .and(eventTypeSpec(eventType))
             .and(serverTimestampFromSpec(from))
-            .and(serverTimestampToSpec(to));
+            .and(serverTimestampToSpec(to))
+            .and(archivedSpec(includeArchived));
         return spec;
+    }
+
+    private Specification<AuditEvent> archivedSpec(boolean includeArchived) {
+        return (root, query, cb) -> includeArchived ? null : cb.isNull(root.get("archivedAt"));
     }
 
     private Specification<AuditEvent> actorIdSpec(String actorId) {

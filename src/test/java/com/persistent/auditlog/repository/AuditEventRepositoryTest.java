@@ -23,7 +23,7 @@ class AuditEventRepositoryTest extends AbstractIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        jdbcTemplate.execute("TRUNCATE TABLE audit_events RESTART IDENTITY");
+        jdbcTemplate.execute("TRUNCATE TABLE audit_events RESTART IDENTITY CASCADE");
     }
 
     @Test

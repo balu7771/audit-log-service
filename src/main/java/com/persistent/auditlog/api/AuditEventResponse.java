@@ -8,6 +8,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.Instant;
+import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -48,19 +49,36 @@ public class AuditEventResponse {
     @JsonProperty("previousHash")
     private String previousHash;
 
+    @JsonProperty("archivedAt")
+    private Instant archivedAt;
+
+    @JsonProperty("sensitiveFields")
+    private List<String> sensitiveFields;
+
     public static AuditEventResponse fromEntity(AuditEvent entity) {
+        return fromEntity(entity, entity.getPayload(), null);
+    }
+
+    /**
+     * renderedPayload lets callers substitute a decrypted/placeholder payload
+     * (see PayloadRedactionService) without exposing this DTO to a service
+     * dependency; sensitiveFields is the record's originally-declared list.
+     */
+    public static AuditEventResponse fromEntity(AuditEvent entity, String renderedPayload, List<String> sensitiveFields) {
         return AuditEventResponse.builder()
             .sequenceId(entity.getSequenceId())
             .eventType(entity.getEventType())
             .actorId(entity.getActorId())
             .resourceType(entity.getResourceType())
             .resourceId(entity.getResourceId())
-            .payload(entity.getPayload())
+            .payload(renderedPayload)
             .serverTimestamp(entity.getServerTimestamp())
             .clientTimestamp(entity.getClientTimestamp())
             .contentHash(entity.getContentHash())
             .recordHash(entity.getRecordHash())
             .previousHash(entity.getPreviousHash())
+            .archivedAt(entity.getArchivedAt())
+            .sensitiveFields(sensitiveFields)
             .build();
     }
 }

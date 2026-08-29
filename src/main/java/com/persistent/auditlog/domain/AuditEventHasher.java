@@ -48,6 +48,25 @@ public class AuditEventHasher {
         event.setRecordHash(recordHash);
     }
 
+    /**
+     * Recomputes contentHash for an already-persisted event from a detached
+     * copy of its own fields, without mutating the original or requiring a
+     * previous event. Shared by chain verification and export-bundle
+     * verification so both use identical hashing logic.
+     */
+    public String recomputeContentHashOnly(AuditEvent event) {
+        AuditEvent detached = AuditEvent.builder()
+            .eventType(event.getEventType())
+            .actorId(event.getActorId())
+            .resourceType(event.getResourceType())
+            .resourceId(event.getResourceId())
+            .payload(event.getPayload())
+            .serverTimestamp(event.getServerTimestamp())
+            .build();
+        computeHash(detached, null);
+        return detached.getContentHash();
+    }
+
     private String computeContentHash(AuditEvent event) {
         // Create canonical JSON in fixed field order (excluding clientTimestamp, hashes, sequenceId)
         Map<String, Object> canonicalData = new LinkedHashMap<>();

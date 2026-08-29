@@ -34,7 +34,7 @@ class AuditChainVerificationTest extends AbstractIntegrationTest {
     @BeforeEach
     void setUp() {
         mockMvc = authenticatedMockMvc(context);
-        jdbcTemplate.execute("TRUNCATE TABLE audit_events RESTART IDENTITY");
+        jdbcTemplate.execute("TRUNCATE TABLE audit_events RESTART IDENTITY CASCADE");
     }
 
     private void disableTrigger() {
@@ -204,6 +204,39 @@ class AuditChainVerificationTest extends AbstractIntegrationTest {
 
         Assertions.assertThat(violationLog.getPayload()).contains("CONTENT_HASH_MISMATCH");
         Assertions.assertThat(violationLog.getPayload()).contains("sequenceId");
+    }
+
+    @Test
+    void testVerifyIntactChainWithArchivedRecordsReportsArchivedCount() throws Exception {
+        createValidChain(5);
+
+        // Legitimate archival path: archived_at-only update, allowed by the
+        // narrowed trigger from V6.
+        jdbcTemplate.execute("UPDATE audit_events SET archived_at = now() WHERE sequence_id IN (1, 2)");
+
+        mockMvc.perform(get("/audit/verify"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.intact").value(true))
+            .andExpect(jsonPath("$.totalRecords").value(5))
+            .andExpect(jsonPath("$.verifiedRecordsCount").value(5))
+            .andExpect(jsonPath("$.archivedRecordsCount").value(2));
+    }
+
+    @Test
+    void testVerifyDetectsTamperOnArchivedRecord() throws Exception {
+        createValidChain(3);
+
+        jdbcTemplate.execute("UPDATE audit_events SET archived_at = now() WHERE sequence_id = 2");
+
+        disableTrigger();
+        jdbcTemplate.execute("UPDATE audit_events SET payload = '{\"corrupted\": true}' WHERE sequence_id = 2");
+        enableTrigger();
+
+        mockMvc.perform(get("/audit/verify"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.intact").value(false))
+            .andExpect(jsonPath("$.violation.sequenceId").value(2))
+            .andExpect(jsonPath("$.violation.violationType").value("CONTENT_HASH_MISMATCH"));
     }
 
     private void createValidChain(int count) {

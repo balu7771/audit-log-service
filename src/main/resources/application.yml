@@ -23,6 +23,17 @@ audit:
     # Override via AUDIT_API_KEY in any real deployment; the fallback below is
     # for local docker-compose/dev use only.
     api-key: ${AUDIT_API_KEY:local-dev-only-key-change-me}
+    # HMAC-SHA256 key used to sign/verify export bundle manifests. Override via
+    # AUDIT_EXPORT_SIGNING_KEY in any real deployment.
+    export-signing-key: ${AUDIT_EXPORT_SIGNING_KEY:local-dev-only-export-key-change-me}
+  retention:
+    # Default retention window (days) used by POST /audit/retention/archive
+    # when no windowDays override is supplied.
+    window-days: ${AUDIT_RETENTION_WINDOW_DAYS:365}
+  export:
+    # Hard cap on records per bulk export bundle; exceeding it returns 400
+    # rather than attempting an unbounded in-memory export.
+    max-records: ${AUDIT_EXPORT_MAX_RECORDS:10000}
 
 management:
   endpoints:

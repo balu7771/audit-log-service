@@ -41,16 +41,20 @@ public class AuditEventChainVerificationService {
             startIndex = allEvents.size() - lastN.get();
         }
         List<AuditEvent> eventsToVerify = allEvents.subList(startIndex, allEvents.size());
+        long archivedRecordsCount = eventsToVerify.stream().filter(e -> e.getArchivedAt() != null).count();
 
         for (int i = 0; i < eventsToVerify.size(); i++) {
             AuditEvent event = eventsToVerify.get(i);
             int originalIndex = startIndex + i;
             AuditEvent priorEvent = originalIndex > 0 ? allEvents.get(originalIndex - 1) : null;
 
-            // Sequence continuity
+            // Sequence continuity - archived records are still part of the primary
+            // sequence and are walked exactly like non-archived ones; archiving
+            // never removes a row or changes its sequence_id, so this never
+            // false-positives on legitimately archived records.
             long expectedSequenceId = priorEvent != null ? priorEvent.getSequenceId() + 1 : 1L;
             if (event.getSequenceId() != expectedSequenceId) {
-                return recordViolation(totalRecords, priorEvent, i, VerificationResponse.ViolationDetail.builder()
+                return recordViolation(totalRecords, priorEvent, i, archivedRecordsCount, VerificationResponse.ViolationDetail.builder()
                     .sequenceId(event.getSequenceId())
                     .violationType("SEQUENCE_GAP")
                     .details("Expected sequence_id " + expectedSequenceId + ", but found " + event.getSequenceId())
@@ -58,9 +62,9 @@ public class AuditEventChainVerificationService {
             }
 
             // contentHash - recomputed from the stored payload/fields
-            String computedContentHash = computeContentHash(event);
+            String computedContentHash = auditEventHasher.recomputeContentHashOnly(event);
             if (!computedContentHash.equals(event.getContentHash())) {
-                return recordViolation(totalRecords, priorEvent, i, VerificationResponse.ViolationDetail.builder()
+                return recordViolation(totalRecords, priorEvent, i, archivedRecordsCount, VerificationResponse.ViolationDetail.builder()
                     .sequenceId(event.getSequenceId())
                     .violationType("CONTENT_HASH_MISMATCH")
                     .expectedValue(computedContentHash)
@@ -73,7 +77,7 @@ public class AuditEventChainVerificationService {
             String expectedPreviousHash = priorEvent != null ? priorEvent.getRecordHash() : GENESIS_PREVIOUS_HASH;
             String computedRecordHash = computeRecordHash(event.getContentHash(), expectedPreviousHash);
             if (!computedRecordHash.equals(event.getRecordHash())) {
-                return recordViolation(totalRecords, priorEvent, i, VerificationResponse.ViolationDetail.builder()
+                return recordViolation(totalRecords, priorEvent, i, archivedRecordsCount, VerificationResponse.ViolationDetail.builder()
                     .sequenceId(event.getSequenceId())
                     .violationType("RECORD_HASH_MISMATCH")
                     .expectedValue(computedRecordHash)
@@ -84,7 +88,7 @@ public class AuditEventChainVerificationService {
 
             // previousHash link to prior record
             if (!expectedPreviousHash.equals(event.getPreviousHash())) {
-                return recordViolation(totalRecords, priorEvent, i, VerificationResponse.ViolationDetail.builder()
+                return recordViolation(totalRecords, priorEvent, i, archivedRecordsCount, VerificationResponse.ViolationDetail.builder()
                     .sequenceId(event.getSequenceId())
                     .violationType("PREVIOUS_HASH_MISMATCH")
                     .expectedValue(expectedPreviousHash)
@@ -99,10 +103,12 @@ public class AuditEventChainVerificationService {
             .totalRecords(totalRecords)
             .lastVerifiedSequenceId(allEvents.get(allEvents.size() - 1).getSequenceId())
             .verifiedRecordsCount(eventsToVerify.size())
+            .archivedRecordsCount(archivedRecordsCount)
             .build();
     }
 
     private VerificationResponse recordViolation(long totalRecords, AuditEvent priorEvent, int verifiedCount,
+                                                  long archivedRecordsCount,
                                                   VerificationResponse.ViolationDetail violation) {
         logViolation(violation);
         return VerificationResponse.builder()
@@ -110,6 +116,7 @@ public class AuditEventChainVerificationService {
             .totalRecords(totalRecords)
             .lastVerifiedSequenceId(priorEvent != null ? priorEvent.getSequenceId() : null)
             .verifiedRecordsCount(verifiedCount)
+            .archivedRecordsCount(archivedRecordsCount)
             .violation(violation)
             .build();
     }
@@ -132,22 +139,6 @@ public class AuditEventChainVerificationService {
             hexString.append(hex);
         }
         return hexString.toString();
-    }
-
-    private String computeContentHash(AuditEvent event) {
-        // Recompute via the hasher using a detached copy so the stored hashes aren't mutated
-        AuditEvent tempEvent = AuditEvent.builder()
-            .eventType(event.getEventType())
-            .actorId(event.getActorId())
-            .resourceType(event.getResourceType())
-            .resourceId(event.getResourceId())
-            .payload(event.getPayload())
-            .serverTimestamp(event.getServerTimestamp())
-            .build();
-
-        auditEventHasher.computeHash(tempEvent, null);
-
-        return tempEvent.getContentHash();
     }
 
     private void logViolation(VerificationResponse.ViolationDetail violation) {

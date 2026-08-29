@@ -5,6 +5,11 @@ spring:
 audit:
   security:
     api-key: test-api-key
+    export-signing-key: test-export-signing-key
+  retention:
+    window-days: 365
+  export:
+    max-records: 10000
 
 logging:
   level:

@@ -184,3 +184,86 @@ removed.
     assumptions/trade-offs doc, and trimmed the duplicated content out of
     `PRD-COMPLIANCE.md` in favor of pointing to it.
   - All 42 tests across 7 test classes pass via `./mvnw verify`.
+
+### 2026-08-28 — Scenario B: retention, structured redaction, bulk export
+
+- Author: balu.learnz@gmail.com
+- Tool/model: Claude Code (Claude Sonnet 5)
+- Scope: Scenario B — extend the Scenario A hash-chained audit log with
+  retention/archival, structured redaction of sensitive payload fields, and a
+  bulk export endpoint, per PRD §5 Scenario B.
+- Prompt(s):
+  > Let's move on to Scenario B: Retention Policy (records older than a
+  > configurable window should be archivable or soft-deletable; the chain
+  > verification endpoint must handle archived records correctly, no false
+  > positive). Structured Redaction (sensitive payload fields must be
+  > redactable to satisfy data privacy requirements, without breaking the
+  > hash chain — design and implement a redaction scheme, document approach/
+  > trade-offs/limitations). Bulk Export (export all records for a given
+  > resourceId or actorId as a self-contained, verifiable bundle, with enough
+  > chain metadata for independent verification). Ask in case of any
+  > ambiguity, don't assume.
+- Design decisions confirmed with the requester before implementation (see
+  `ASSUMPTIONS-AND-TRADEOFFS.md` for the full rationale and rejected
+  alternatives):
+  - Redaction: **crypto-shredding** (encrypt declared-sensitive fields with
+    AES-256-GCM *before* hashing; redact by destroying the per-field key in
+    a separate table) over a salted hash-commitment scheme — chosen because
+    it requires zero changes to `AuditEventHasher` and zero exceptions to
+    the immutability trigger for the redaction path itself.
+  - Retention: **soft-delete flag on the same table** (`archived_at`,
+    outside the hash) over physically moving/deleting rows — chosen because
+    it requires no archive-aware gap-handling logic in the verifier at all.
+  - Bulk export: **per-record hash + manifest hash + HMAC signature** over
+    manifest-hash-only, so a recipient can detect per-record tampering,
+    record add/remove/reorder, and wholesale bundle fabrication as three
+    distinct, independently-checkable guarantees.
+  - Sensitive fields are declared by the caller per-event at write time
+    (`sensitiveFields` on `CreateAuditEventRequest`), not a fixed global list.
+- Outcome:
+  - Migrations `V4` (`sensitive_fields` column + `redaction_keys` table, no
+    trigger on the latter), `V5` (`archived_at` column + partial index), `V6`
+    (narrows the V3 immutability trigger to allow exactly one transition:
+    `archived_at` NULL -> non-null with every other column byte-identical).
+  - New: `RedactionKey`/`RedactionKeyId` entities, `FieldEncryptor`
+    (AES-256-GCM), `HmacSigner` (HMAC-SHA256), `PayloadRedactionService`
+    (encrypt-at-write, decrypt-or-`[REDACTED]`-at-read), `RedactionService`
+    (destroys keys, self-logs a `FIELD_REDACTED` audit event),
+    `AuditEventRetentionService` (native bulk-UPDATE archival, avoiding
+    entity-`save()` precision-drift risk against the new trigger),
+    `AuditExportService` (bundle build + independent re-verification),
+    `RedactionKeyRepository`, new `archiveEligible`/`countByArchivedAtIsNotNull`
+    on `AuditEventRepository`.
+  - New controllers: `RedactionController` (`POST /audit/events/{id}/redactions`),
+    `AuditRetentionController` (`POST /audit/retention/archive`),
+    `AuditExportController` (`GET /audit/export`, `POST /audit/export/verify`).
+    Extracted `GlobalExceptionHandler` (`@RestControllerAdvice`) from
+    `AuditEventController` so validation/`IllegalArgumentException` handling
+    is shared across all `/audit/**` controllers, not duplicated per class.
+  - Modified: `AuditEventService` (encrypts sensitive fields before hashing,
+    persists event + redaction keys in one transaction), `AuditEventHasher`
+    (extracted `recomputeContentHashOnly` as a public method, reused by both
+    chain verification and export-bundle verification — its actual hashing
+    logic is otherwise untouched), `AuditEventChainVerificationService`
+    (reports `archivedRecordsCount`, no other logic changes),
+    `AuditEventQueryService`/`AuditEventController` (`includeArchived`
+    filter, decrypt-or-placeholder rendering on read),
+    `CreateAuditEventRequest`/`AuditEventResponse`/`VerificationResponse`
+    (new fields).
+  - Fixed a consequence of the new `redaction_keys` FK: every existing
+    test's `TRUNCATE TABLE audit_events RESTART IDENTITY` needed `CASCADE`
+    added, since Postgres blocks truncating a table with an incoming FK
+    reference regardless of whether the referencing table currently has
+    rows.
+  - New tests: `FieldEncryptorTest`, `RedactionKeyRepositoryTest`,
+    `AuditEventRedactionIT`, `AuditEventRetentionIT`, `AuditExportTest`, plus
+    two new cases in `AuditChainVerificationTest` for archived-record
+    handling. 74 tests across 12 test classes pass via `./mvnw verify`
+    (60 unit/component + 14 integration).
+  - Updated `docs/architecture/ASSUMPTIONS-AND-TRADEOFFS.md` (new Scenario B
+    section: redaction scheme comparison + limitations, retention design +
+    limitations, export verifiability + limitations),
+    `docs/architecture/C4-diagram.md` (new components/relationships),
+    `docs/architecture/PRD-COMPLIANCE.md` (new Scenario B requirement table),
+    and `README.md` (API table, Scenario B manual validation walkthrough,
+    updated test count).

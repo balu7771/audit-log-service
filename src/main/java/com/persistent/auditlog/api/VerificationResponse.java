@@ -26,6 +26,9 @@ public class VerificationResponse {
     @JsonProperty("verifiedRecordsCount")
     private int verifiedRecordsCount;
 
+    @JsonProperty("archivedRecordsCount")
+    private long archivedRecordsCount;
+
     @JsonProperty("violation")
     private ViolationDetail violation;
 
