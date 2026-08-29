@@ -1,0 +1,13 @@
+info:
+  name: Scenario B - Retention and Redaction
+  type: folder
+
+request:
+  auth: inherit
+  headers:
+    - name: X-API-Key
+      value: "{{apiKey}}"
+
+docs:
+  content: Extends Scenario A with retention/archival, redaction, and bulk export
+  type: text/markdown

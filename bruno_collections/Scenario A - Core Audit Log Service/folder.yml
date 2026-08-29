@@ -1,0 +1,13 @@
+info:
+  name: Scenario A - Core Audit Log Service
+  type: folder
+
+request:
+  auth: inherit
+  headers:
+    - name: X-API-Key
+      value: "{{apiKey}}"
+
+docs:
+  content: Greenfield core audit log service - write, query, and hash-chain verify
+  type: text/markdown

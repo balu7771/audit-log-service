@@ -1,0 +1,20 @@
+name: Local
+variables:
+  - name: baseUrl
+    value: http://localhost:8080
+    description: ""
+  - name: apiKey
+    value: local-compose-key-change-me
+    description: ""
+  - name: sequenceId
+    value: "1"
+    description: ""
+  - name: actorId
+    value: analyst@example.com
+    description: ""
+  - name: resourceType
+    value: CUSTOMER_RECORD
+    description: ""
+  - name: resourceId
+    value: cust-1001
+    description: ""

@@ -1,0 +1,30 @@
+info:
+  name: 05. Query Events - Filter by Actor
+  type: http
+  seq: 5
+
+http:
+  method: GET
+  url: "{{baseUrl}}/audit/events"
+  params:
+    - name: actorId
+      value: admin@example.com
+      type: query
+    - name: page
+      value: "0"
+      type: query
+    - name: size
+      value: "20"
+      type: query
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
+
+docs: |-
+  Test Case 5: Filter events by actorId=admin@example.com.
+  Expected: 200 OK, only the RECORD_UPDATED event returned.

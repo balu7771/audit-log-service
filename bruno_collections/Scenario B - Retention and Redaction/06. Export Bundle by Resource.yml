@@ -1,0 +1,32 @@
+info:
+  name: 06. Export Bundle by Resource
+  type: http
+  seq: 6
+
+http:
+  method: GET
+  url: "{{baseUrl}}/audit/export"
+  params:
+    - name: resourceType
+      value: CUSTOMER_RECORD
+      type: query
+    - name: resourceId
+      value: cust-1001
+      type: query
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
+
+docs: |-
+  Test Case 6: Export all events for resourceType=CUSTOMER_RECORD,
+  resourceId=cust-1001 as a self-contained, verifiable bundle.
+
+  Expected: 200 OK, recordCount=3, records array with full hash-chain data
+  per record, manifest (algorithm + manifestHash), and signature
+  (algorithm + HMAC value). Copy this response body into
+  "08. Verify Export Bundle" to test independent verification.

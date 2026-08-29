@@ -179,6 +179,25 @@ handling, the API-key filter, AES-256-GCM field encryption, redaction
 window archival, and export-bundle verification (per-record, manifest, and
 signature tampering).
 
+### Troubleshooting: truncating `audit_events` manually
+
+`redaction_keys` has a foreign key to `audit_events(sequence_id)` (see
+`V4__add_redaction_support.sql`) with no `ON DELETE` clause, so a plain
+
+```sql
+TRUNCATE TABLE audit_events RESTART IDENTITY;
+```
+
+fails with `cannot truncate a table referenced in a foreign key constraint`.
+Add `CASCADE` (safe here — `redaction_keys` is the only referencing table):
+
+```sql
+TRUNCATE TABLE audit_events RESTART IDENTITY CASCADE;
+```
+
+This is the pattern already used in every test's `@BeforeEach` (e.g.
+`AuditEventRepositoryTest.java`).
+
 ## Project structure
 
 ```

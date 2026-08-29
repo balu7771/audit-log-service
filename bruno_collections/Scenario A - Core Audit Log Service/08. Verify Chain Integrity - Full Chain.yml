@@ -1,0 +1,24 @@
+info:
+  name: 08. Verify Chain Integrity - Full Chain
+  type: http
+  seq: 8
+
+http:
+  method: GET
+  url: "{{baseUrl}}/audit/verify"
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
+
+docs: |-
+  Test Case 8: Verify the entire hash chain.
+  Expected: 200 OK, intact=true, totalRecords=3, verifiedRecordsCount=3, violation=null.
+
+  To test tamper detection: manually modify a stored record in the database
+  (e.g. change an actorId), then re-run this request. Expect intact=false with
+  a violation object identifying the first broken record.

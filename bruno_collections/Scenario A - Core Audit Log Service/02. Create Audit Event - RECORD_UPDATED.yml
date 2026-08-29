@@ -1,0 +1,33 @@
+info:
+  name: 02. Create Audit Event - RECORD_UPDATED
+  type: http
+  seq: 2
+
+http:
+  method: POST
+  url: "{{baseUrl}}/audit/events"
+  body:
+    type: json
+    data: |-
+      {
+        "eventType": "RECORD_UPDATED",
+        "actorId": "admin@example.com",
+        "resourceType": "ACCOUNT",
+        "resourceId": "acc-789",
+        "payload": "{\"accountNumber\": \"****5678\", \"previousBalance\": 10000.50, \"newBalance\": 10500.75, \"updateReason\": \"deposit\"}",
+        "sensitiveFields": ["accountNumber"]
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
+
+docs: |-
+  Test Case 2: Create a RECORD_UPDATED event on resource acc-789.
+  Expected: 201 Created, sequenceId incremented, previousHash equals the previous
+  response's recordHash (proves chain linkage). accountNumber is declared sensitive
+  so it can be redacted later in Scenario B.

@@ -1,0 +1,34 @@
+info:
+  name: 05. Redact Sensitive Field
+  type: http
+  seq: 5
+
+http:
+  method: POST
+  url: "{{baseUrl}}/audit/events/{{sequenceId}}/redactions"
+  body:
+    type: json
+    data: |-
+      {
+        "fieldPath": "customerId",
+        "actorId": "compliance@example.com",
+        "reason": "GDPR-data-subject-right-to-be-forgotten"
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
+
+docs: |-
+  Test Case 5: Crypto-shred the "customerId" field declared sensitive in
+  Test B.1. Before running, set the {{sequenceId}} environment variable to the
+  sequenceId returned by "01. Create Events for Export".
+
+  Expected: 200 OK, alreadyRedacted=false, redactionAuditEventSequenceId set
+  (a new audit event is created recording the redaction). The original
+  contentHash/recordHash on record B.1 remain unchanged - only the decryption
+  key for that field is destroyed, so the hash chain is never broken.

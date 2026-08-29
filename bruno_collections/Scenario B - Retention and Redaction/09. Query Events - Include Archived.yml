@@ -1,0 +1,38 @@
+info:
+  name: 09. Query Events - Include Archived
+  type: http
+  seq: 9
+
+http:
+  method: GET
+  url: "{{baseUrl}}/audit/events"
+  params:
+    - name: resourceType
+      value: CUSTOMER_RECORD
+      type: query
+    - name: resourceId
+      value: cust-1001
+      type: query
+    - name: includeArchived
+      value: "true"
+      type: query
+    - name: page
+      value: "0"
+      type: query
+    - name: size
+      value: "20"
+      type: query
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
+
+docs: |-
+  Test Case 9: Query events for cust-1001 with includeArchived=true.
+  Expected: 200 OK, content includes all 3 events, each with archivedAt
+  populated (set by Test B.4). Omitting includeArchived or setting it to
+  false would exclude these archived records from the results.

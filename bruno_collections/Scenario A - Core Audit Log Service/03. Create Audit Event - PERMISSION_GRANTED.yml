@@ -1,0 +1,31 @@
+info:
+  name: 03. Create Audit Event - PERMISSION_GRANTED
+  type: http
+  seq: 3
+
+http:
+  method: POST
+  url: "{{baseUrl}}/audit/events"
+  body:
+    type: json
+    data: |-
+      {
+        "eventType": "PERMISSION_GRANTED",
+        "actorId": "security-admin@example.com",
+        "resourceType": "USER",
+        "resourceId": "user-456",
+        "payload": "{\"grantedTo\": \"analyst@example.com\", \"permission\": \"VIEW_REPORTS\", \"expiresAt\": \"2026-12-31T23:59:59Z\"}",
+        "sensitiveFields": []
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
+
+docs: |-
+  Test Case 3: Create a PERMISSION_GRANTED event - third record in the chain.
+  Expected: 201 Created, sequenceId 3, previousHash equals recordHash from Test 2.

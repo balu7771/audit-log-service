@@ -1,0 +1,46 @@
+info:
+  name: 08. Verify Export Bundle
+  type: http
+  seq: 8
+
+http:
+  method: POST
+  url: "{{baseUrl}}/audit/export/verify"
+  body:
+    type: json
+    data: |-
+      {
+        "exportedAt": "2026-08-29T14:30:00Z",
+        "actorId": null,
+        "resourceType": "CUSTOMER_RECORD",
+        "resourceId": "cust-1001",
+        "recordCount": 3,
+        "records": [],
+        "manifest": {
+          "algorithm": "SHA-256",
+          "manifestHash": "REPLACE_WITH_VALUE_FROM_EXPORT_RESPONSE"
+        },
+        "signature": {
+          "algorithm": "HMAC-SHA-256",
+          "value": "REPLACE_WITH_VALUE_FROM_EXPORT_RESPONSE"
+        }
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
+
+docs: |-
+  Test Case 8: Independently verify a bundle exported by "06. Export Bundle by
+  Resource" without contacting the service for the original records.
+
+  IMPORTANT: Paste the FULL response body from Test 6 here (including the
+  populated "records" array) before sending - the placeholder body above is
+  just a schema example and will not verify successfully as-is.
+
+  Expected: 200 OK, valid=true, perRecordIntact=true, manifestIntact=true,
+  signatureIntact=true, firstViolation=null.

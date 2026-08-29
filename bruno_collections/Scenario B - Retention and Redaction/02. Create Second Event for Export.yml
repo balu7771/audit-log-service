@@ -1,0 +1,31 @@
+info:
+  name: 02. Create Second Event for Export
+  type: http
+  seq: 2
+
+http:
+  method: POST
+  url: "{{baseUrl}}/audit/events"
+  body:
+    type: json
+    data: |-
+      {
+        "eventType": "ACCOUNT_MODIFICATION",
+        "actorId": "operations@example.com",
+        "resourceType": "CUSTOMER_RECORD",
+        "resourceId": "cust-1001",
+        "payload": "{\"accountStatus\": \"active\", \"billingAddress\": \"123 Main St\", \"phoneNumber\": \"+1-555-1234\", \"ssn\": \"***-**-7890\"}",
+        "sensitiveFields": ["phoneNumber", "ssn"]
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
+
+docs: |-
+  Test Case 2: Second event on the same resource (cust-1001), continuing the
+  hash chain. phoneNumber and ssn are declared sensitive PII fields.

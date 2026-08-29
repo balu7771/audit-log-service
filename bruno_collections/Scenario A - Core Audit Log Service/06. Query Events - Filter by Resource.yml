@@ -1,0 +1,33 @@
+info:
+  name: 06. Query Events - Filter by Resource
+  type: http
+  seq: 6
+
+http:
+  method: GET
+  url: "{{baseUrl}}/audit/events"
+  params:
+    - name: resourceType
+      value: ACCOUNT
+      type: query
+    - name: resourceId
+      value: acc-789
+      type: query
+    - name: page
+      value: "0"
+      type: query
+    - name: size
+      value: "20"
+      type: query
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
+
+docs: |-
+  Test Case 6: Filter events by resourceType=ACCOUNT and resourceId=acc-789.
+  Expected: 200 OK, only the RECORD_UPDATED event returned.

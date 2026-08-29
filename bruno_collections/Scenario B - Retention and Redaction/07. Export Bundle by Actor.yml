@@ -1,0 +1,25 @@
+info:
+  name: 07. Export Bundle by Actor
+  type: http
+  seq: 7
+
+http:
+  method: GET
+  url: "{{baseUrl}}/audit/export"
+  params:
+    - name: actorId
+      value: analyst@example.com
+      type: query
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
+
+docs: |-
+  Test Case 7: Export all events created by actorId=analyst@example.com,
+  regardless of resource. Expected: 200 OK, bundle with recordCount >= 1
+  (the DATA_ACCESS event from Test B.1), manifest, and signature.

@@ -1,0 +1,30 @@
+info:
+  name: 07. Query Events - Filter by Event Type
+  type: http
+  seq: 7
+
+http:
+  method: GET
+  url: "{{baseUrl}}/audit/events"
+  params:
+    - name: eventType
+      value: RECORD_UPDATED
+      type: query
+    - name: page
+      value: "0"
+      type: query
+    - name: size
+      value: "20"
+      type: query
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
+
+docs: |-
+  Test Case 7: Filter events by eventType=RECORD_UPDATED.
+  Expected: 200 OK, only the RECORD_UPDATED event returned.

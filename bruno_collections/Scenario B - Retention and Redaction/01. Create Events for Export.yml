@@ -1,0 +1,33 @@
+info:
+  name: 01. Create Events for Export
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{baseUrl}}/audit/events"
+  body:
+    type: json
+    data: |-
+      {
+        "eventType": "DATA_ACCESS",
+        "actorId": "analyst@example.com",
+        "resourceType": "CUSTOMER_RECORD",
+        "resourceId": "cust-1001",
+        "payload": "{\"customerId\": \"CUST-5678\", \"accessType\": \"read\", \"dataClassification\": \"confidential\", \"recordsAccessed\": 1}",
+        "sensitiveFields": ["customerId"]
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
+
+docs: |-
+  Test Case 1: Create the first event on resource cust-1001 for the retention/
+  redaction/export scenario. Note the sequenceId in the response - it is needed
+  as {{sequenceId}} for the Redact Sensitive Field request later.
+  customerId is declared sensitive so it can be redacted.

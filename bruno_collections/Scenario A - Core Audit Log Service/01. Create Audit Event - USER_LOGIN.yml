@@ -1,0 +1,31 @@
+info:
+  name: 01. Create Audit Event - USER_LOGIN
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{baseUrl}}/audit/events"
+  body:
+    type: json
+    data: |-
+      {
+        "eventType": "USER_LOGIN",
+        "actorId": "user@example.com",
+        "resourceType": "USER_SESSION",
+        "resourceId": "session-12345",
+        "payload": "{\"ipAddress\": \"192.168.1.100\", \"userAgent\": \"Mozilla/5.0\", \"loginMethod\": \"password\"}",
+        "sensitiveFields": []
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
+
+docs: |-
+  Test Case 1: Create a USER_LOGIN audit event - the first record in the hash chain.
+  Expected: 201 Created. previousHash should be the genesis value since this is record #1.

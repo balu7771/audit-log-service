@@ -1,0 +1,26 @@
+info:
+  name: 04. Archive Eligible Records
+  type: http
+  seq: 4
+
+http:
+  method: POST
+  url: "{{baseUrl}}/audit/retention/archive"
+  params:
+    - name: windowDays
+      value: "0"
+      type: query
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
+
+docs: |-
+  Test Case 4: Soft-archive all records older than windowDays=0 (i.e. everything
+  created so far). Expected: 200 OK, archivedCount > 0, cutoffTimestamp set,
+  windowDaysUsed=0. The hash chain is never modified by archival - only an
+  archivedAt timestamp is set on each record.
