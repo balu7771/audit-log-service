@@ -267,3 +267,68 @@ removed.
     `docs/architecture/PRD-COMPLIANCE.md` (new Scenario B requirement table),
     and `README.md` (API table, Scenario B manual validation walkthrough,
     updated test count).
+
+### 2026-08-29 — Scenario C: requirement clarification + technical design (no code)
+
+- Author: balu.learnz@gmail.com
+- Tool/model: Claude Code (Claude Sonnet 5)
+- Scope: Scenario C — clarify the intentionally-ambiguous PRD prompt
+  ("Regulators need to be able to audit access to client account data"),
+  identify ambiguities/assumptions, and produce a technical design document.
+  Explicitly design-only for this pass; no implementation.
+- Prompt(s):
+  > The product team asked for : "Regulators need to be able to audit
+  > access to client account data.". Go through the @README.md and get the
+  > requirement out from what the product team wants out of this request.
+  > Ask me any question if ambiguous. The output of this interaction should
+  > be a technical design. the trade-offs, the choices etc as a document in
+  > docs - inside a directory FeatureRequest - with file name as
+  > scenarioC.md
+  >
+  > update the README and the PROMPT_HISTORY with this prompt, our choices,
+  > etc. basically export of this current prompt session added to
+  > prompt_history.md
+- Before drafting, read `README.md`, `docs/architecture/PRD-COMPLIANCE.md`,
+  `docs/architecture/ASSUMPTIONS-AND-TRADEOFFS.md`,
+  `docs/architecture/C4-diagram.md`, and the PRD PDF's Scenario C section
+  (§5) to ground the design in what's already built vs. genuinely missing.
+- Ambiguities surfaced and put to the requester (not assumed) before
+  writing the design, with the answers given:
+  1. **Does "access" mean reads, writes, or both?** → Both, but must be
+     distinguishable in reports (separate read/write counts, not one
+     tally) — a regulator's privacy question ("who viewed this") and
+     integrity question ("who changed this") are different questions.
+  2. **What's the actual gap**, given `GET /audit/events` and
+     `GET /audit/export` already exist? → A dedicated aggregated
+     compliance-report endpoint (by account/actor/time), not just better
+     docs on existing raw-query endpoints, and not a scheduled/retained
+     report artifact (that's a separate, deferred concern).
+  3. **Should regulators reuse the existing shared API key**, or get a
+     distinct access model? → Design (but do not implement) a read-only
+     `REGULATOR` role, distinct from the existing shared `WRITER` key —
+     a regulator credential must not be able to write/redact/archive.
+  4. **Is "client account data" a known `resourceType`** (e.g. `ACCOUNT`),
+     or could it span multiple/unknown resource types? → Left as an open
+     question for a product/compliance stakeholder, not assumed — the
+     existing free-form `resourceType`/`eventType` design gives no
+     guarantee of a consistent convention.
+- Outcome:
+  - Wrote `docs/FeatureRequest/scenarioC.md`: the clarified requirement
+    statement; the ambiguity/resolution table above; 5 open questions for a
+    stakeholder (resourceType taxonomy, scheduled vs. on-demand reports,
+    regulatory retention window vs. Scenario B's cost-driven archival
+    window, actor attribution beyond `actorId`, and the fundamental risk
+    that this service can only report access it's told about); risks/
+    trade-offs; and the design itself — an additive, hashed `accessType`
+    field (`READ`/`WRITE`, nullable/`UNKNOWN` on pre-migration rows), a new
+    `GET /audit/compliance/account-access-report` aggregate endpoint (SQL
+    `GROUP BY`, not a full-table walk, with an integrity attestation scoped
+    to just the report's result set via the existing chain verifier), and a
+    sketched (unimplemented) `WRITER`/`REGULATOR` role split on
+    `ApiKeyAuthFilter`. Explicit scope boundary: design only, no code.
+  - Updated `README.md`: pointed both the top-of-file scenario summary and
+    the "Architecture & design decisions" section at
+    `docs/FeatureRequest/scenarioC.md`, clarifying Scenario C now has a
+    clarified requirement + design (not just a gap-analysis stub) but is
+    still unimplemented.
+  - Appended this entry to `docs/PROMPT_HISTORY.md`.

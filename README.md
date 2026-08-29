@@ -7,8 +7,10 @@ endpoint.
 
 This covers **Scenario A** (write API, query API, hash chain, chain
 verification) and **Scenario B** (retention/archival, structured redaction,
-bulk export) of the assignment (`docs/prd/`). Scenario C (compliance
-reporting) is not implemented yet — see
+bulk export) of the assignment (`docs/prd/`). **Scenario C** (compliance
+reporting) has a clarified requirement and technical design — see
+[`docs/FeatureRequest/scenarioC.md`](docs/FeatureRequest/scenarioC.md) — but
+is not implemented yet; see
 [`docs/architecture/PRD-COMPLIANCE.md`](docs/architecture/PRD-COMPLIANCE.md)
 for the full gap analysis against the PRD.
 
@@ -215,7 +217,11 @@ src/main/java/com/persistent/auditlog/
 See [`docs/architecture/C4-diagram.md`](docs/architecture/C4-diagram.md) for
 Context/Container/Component diagrams and
 [`docs/architecture/ASSUMPTIONS-AND-TRADEOFFS.md`](docs/architecture/ASSUMPTIONS-AND-TRADEOFFS.md)
-for the assumptions and trade-offs made building this.
+for the assumptions and trade-offs made building this. For Scenario C
+(compliance reporting), see
+[`docs/FeatureRequest/scenarioC.md`](docs/FeatureRequest/scenarioC.md) for
+the requirement clarification, identified ambiguities, and technical design
+— design only, not yet implemented.
 
 ## Prompt history
 
