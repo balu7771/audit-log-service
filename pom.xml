@@ -24,6 +24,9 @@
         <lombok.version>1.18.46</lombok.version>
         <jacoco.version>0.8.12</jacoco.version>
         <sonar.version>4.0.0.4121</sonar.version>
+        <!-- Override spring-boot-dependencies' pinned 42.7.11: CVE-2026-54291 (HIGH),
+             fixed in 42.7.12 - caught by scripts/trivy-scan.sh. See docs/reports/trivy-report.md. -->
+        <postgresql.version>42.7.13</postgresql.version>
 
         <!-- Sonar project config lives here (not a separate sonar-project.properties)
              so it travels with the Maven build that also produces the coverage report

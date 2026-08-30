@@ -31,6 +31,7 @@ import java.util.stream.Collectors;
 public class PayloadRedactionService {
 
     private static final String REDACTED_PLACEHOLDER = "[REDACTED]";
+    private static final String CIPHERTEXT_FIELD = "ciphertext";
 
     private final FieldEncryptor fieldEncryptor;
     private final RedactionKeyRepository redactionKeyRepository;
@@ -69,7 +70,7 @@ public class PayloadRedactionService {
             envelope.put("__enc", true);
             envelope.put("alg", "AES-256-GCM");
             envelope.put("iv", Base64.getEncoder().encodeToString(encrypted.iv()));
-            envelope.put("ciphertext", encrypted.ciphertextBase64());
+            envelope.put(CIPHERTEXT_FIELD, encrypted.ciphertextBase64());
             objectNode.set(fieldName, envelope);
 
             keyMaterial.add(new FieldKeyMaterial(fieldName, encrypted.key(), encrypted.iv()));
@@ -137,12 +138,12 @@ public class PayloadRedactionService {
             }
 
             JsonNode envelope = objectNode.get(fieldName);
-            if (envelope == null || !envelope.has("ciphertext")) {
+            if (envelope == null || !envelope.has(CIPHERTEXT_FIELD)) {
                 continue; // defensive: unexpected shape, leave untouched
             }
 
             byte[] iv = Base64.getDecoder().decode(envelope.get("iv").asText());
-            String plaintextJson = fieldEncryptor.decrypt(key.getEncryptionKey(), iv, envelope.get("ciphertext").asText());
+            String plaintextJson = fieldEncryptor.decrypt(key.getEncryptionKey(), iv, envelope.get(CIPHERTEXT_FIELD).asText());
             try {
                 objectNode.set(fieldName, objectMapper.readTree(plaintextJson));
             } catch (Exception e) {

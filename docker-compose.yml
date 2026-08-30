@@ -20,6 +20,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: audit-log-service:local
     container_name: audit-log-service
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/auditlog
@@ -43,5 +44,73 @@ services:
       timeout: 5s
       retries: 5
 
+  # --- Quality gates (opt-in): `docker compose --profile quality up -d sonarqube` ---
+  # Not started by a plain `docker compose up` — SonarQube alone needs ~2GB RAM and a
+  # cold start, which would slow down the everyday app+postgres loop for no benefit
+  # unless you're actually running an analysis. See docs/architecture/QUALITY-GATES.md.
+  sonarqube-db:
+    image: postgres:16-alpine
+    container_name: audit-log-sonarqube-db
+    profiles: ["quality"]
+    environment:
+      POSTGRES_DB: sonar
+      POSTGRES_USER: sonar
+      POSTGRES_PASSWORD: sonar
+    volumes:
+      - audit-log-sonarqube-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sonar -d sonar"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  sonarqube:
+    image: sonarqube:community
+    container_name: audit-log-sonarqube
+    profiles: ["quality"]
+    environment:
+      SONAR_JDBC_URL: jdbc:postgresql://sonarqube-db:5432/sonar
+      SONAR_JDBC_USERNAME: sonar
+      SONAR_JDBC_PASSWORD: sonar
+      # Single-node local eval; a shared/production Sonar instance needs proper
+      # Elasticsearch bootstrap limits (vm.max_map_count) which this skips.
+      SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"
+    ports:
+      - "9000:9000"
+    depends_on:
+      sonarqube-db:
+        condition: service_healthy
+    volumes:
+      - audit-log-sonarqube-data:/opt/sonarqube/data
+      - audit-log-sonarqube-extensions:/opt/sonarqube/extensions
+      - audit-log-sonarqube-logs:/opt/sonarqube/logs
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9000/api/system/status | grep -q '\"status\":\"UP\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  # One-shot: `docker compose --profile quality run --rm trivy` (after `docker compose
+  # build app`, so the image it scans is up to date). Exits non-zero on any
+  # CRITICAL/HIGH finding — see scripts/trivy-scan.sh for the wrapper that also
+  # writes docs/reports/trivy-report.md.
+  trivy:
+    image: aquasec/trivy:latest
+    container_name: audit-log-trivy
+    profiles: ["quality"]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - audit-log-trivy-cache:/root/.cache
+      - ./docs/reports:/reports
+    command: >
+      image --exit-code 1 --severity CRITICAL,HIGH
+      --format json --output /reports/trivy-report.json
+      audit-log-service:local
+
 volumes:
   audit-log-postgres-data:
+  audit-log-sonarqube-db-data:
+  audit-log-sonarqube-data:
+  audit-log-sonarqube-extensions:
+  audit-log-sonarqube-logs:
+  audit-log-trivy-cache:
