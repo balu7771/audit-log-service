@@ -17,6 +17,9 @@ http:
         "payload": "{\"grantedTo\": \"analyst@example.com\", \"permission\": \"VIEW_REPORTS\", \"expiresAt\": \"2026-12-31T23:59:59Z\"}",
         "sensitiveFields": []
       }
+  headers:
+    - name: X-API-Key
+      value: "{{writerApiKey}}"
   auth: inherit
 
 settings:

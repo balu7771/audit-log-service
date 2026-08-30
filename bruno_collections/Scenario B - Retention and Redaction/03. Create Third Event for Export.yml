@@ -17,6 +17,9 @@ http:
         "payload": "{\"downloadFormat\": \"CSV\", \"recordCount\": 1, \"downloadedAt\": \"2026-08-29T14:30:00Z\", \"exportReason\": \"audit-request\"}",
         "sensitiveFields": []
       }
+  headers:
+    - name: X-API-Key
+      value: "{{writerApiKey}}"
   auth: inherit
 
 settings:

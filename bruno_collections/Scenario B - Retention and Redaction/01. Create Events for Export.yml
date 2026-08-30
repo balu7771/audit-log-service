@@ -17,6 +17,9 @@ http:
         "payload": "{\"customerId\": \"CUST-5678\", \"accessType\": \"read\", \"dataClassification\": \"confidential\", \"recordsAccessed\": 1}",
         "sensitiveFields": ["customerId"]
       }
+  headers:
+    - name: X-API-Key
+      value: "{{writerApiKey}}"
   auth: inherit
 
 settings:

@@ -22,6 +22,28 @@
         <java.version>21</java.version>
         <testcontainers.version>2.0.5</testcontainers.version>
         <lombok.version>1.18.46</lombok.version>
+        <jacoco.version>0.8.12</jacoco.version>
+        <sonar.version>4.0.0.4121</sonar.version>
+
+        <!-- Sonar project config lives here (not a separate sonar-project.properties)
+             so it travels with the Maven build that also produces the coverage report
+             it references. -->
+        <sonar.projectKey>audit-log-service</sonar.projectKey>
+        <sonar.projectName>Audit Log Service</sonar.projectName>
+        <sonar.coverage.jacoco.xmlReportPaths>${project.build.directory}/site/jacoco/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
+        <!-- Config/DTOs are excluded from the 80% coverage gate (see jacoco-maven-plugin
+             below) because they are declarative bindings, not behavior; mirror that here
+             so Sonar's own coverage metric agrees with the enforced gate instead of
+             reporting a conflicting number for the same classes. -->
+        <sonar.coverage.exclusions>
+            src/main/java/com/persistent/auditlog/config/**,
+            src/main/java/com/persistent/auditlog/api/*Request.java,
+            src/main/java/com/persistent/auditlog/api/*Response.java,
+            src/main/java/com/persistent/auditlog/AuditLogServiceApplication.java
+        </sonar.coverage.exclusions>
+        <!-- Block on the Quality Gate (configured server-side to fail on any new
+             Blocker/Critical issue) rather than only reporting it after the fact. -->
+        <sonar.qualitygate.wait>true</sonar.qualitygate.wait>
     </properties>
 
     <dependencies>
@@ -40,6 +62,10 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
         </dependency>
 
         <dependency>
@@ -79,6 +105,11 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -132,11 +163,17 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <argLine>${surefireArgLine}</argLine>
+                </configuration>
             </plugin>
 
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-failsafe-plugin</artifactId>
+                <configuration>
+                    <argLine>${failsafeArgLine}</argLine>
+                </configuration>
                 <executions>
                     <execution>
                         <goals>
@@ -145,6 +182,111 @@
                         </goals>
                     </execution>
                 </executions>
+            </plugin>
+
+            <!--
+                Coverage gate: unit tests (surefire) and IT tests (failsafe, Testcontainers)
+                are instrumented separately, merged into one exec file, then reported and
+                checked as a single number. Config and DTOs are excluded from instrumentation
+                entirely (not just from the ratio) since they are declarative bindings with no
+                branching logic for a test to meaningfully exercise.
+            -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>${jacoco.version}</version>
+                <configuration>
+                    <excludes>
+                        <exclude>com/persistent/auditlog/config/**</exclude>
+                        <exclude>com/persistent/auditlog/api/*Request.class</exclude>
+                        <exclude>com/persistent/auditlog/api/*Response.class</exclude>
+                        <exclude>com/persistent/auditlog/AuditLogServiceApplication.class</exclude>
+                    </excludes>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>prepare-agent-unit</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                        <configuration>
+                            <destFile>${project.build.directory}/jacoco-unit.exec</destFile>
+                            <propertyName>surefireArgLine</propertyName>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>prepare-agent-integration</id>
+                        <goals>
+                            <goal>prepare-agent-integration</goal>
+                        </goals>
+                        <configuration>
+                            <destFile>${project.build.directory}/jacoco-it.exec</destFile>
+                            <propertyName>failsafeArgLine</propertyName>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>merge-results</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>merge</goal>
+                        </goals>
+                        <configuration>
+                            <fileSets>
+                                <fileSet>
+                                    <directory>${project.build.directory}</directory>
+                                    <includes>
+                                        <include>jacoco-unit.exec</include>
+                                        <include>jacoco-it.exec</include>
+                                    </includes>
+                                </fileSet>
+                            </fileSets>
+                            <destFile>${project.build.directory}/jacoco-merged.exec</destFile>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                        <configuration>
+                            <dataFile>${project.build.directory}/jacoco-merged.exec</dataFile>
+                            <outputDirectory>${project.build.directory}/site/jacoco</outputDirectory>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>check</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                        <configuration>
+                            <dataFile>${project.build.directory}/jacoco-merged.exec</dataFile>
+                            <rules>
+                                <rule>
+                                    <element>BUNDLE</element>
+                                    <limits>
+                                        <limit>
+                                            <counter>LINE</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>0.80</minimum>
+                                        </limit>
+                                    </limits>
+                                </rule>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- Invoked explicitly (./mvnw verify sonar:sonar) rather than bound to a
+                 phase, so a plain `mvn verify` doesn't require network access to a Sonar
+                 server. See docker-compose.yml (sonarqube service) and
+                 docs/architecture/QUALITY-GATES.md. -->
+            <plugin>
+                <groupId>org.sonarsource.scanner.maven</groupId>
+                <artifactId>sonar-maven-plugin</artifactId>
+                <version>${sonar.version}</version>
             </plugin>
         </plugins>
     </build>

@@ -10,6 +10,9 @@ http:
     - name: windowDays
       value: "0"
       type: query
+  headers:
+    - name: X-API-Key
+      value: "{{adminApiKey}}"
   auth: inherit
 
 settings:

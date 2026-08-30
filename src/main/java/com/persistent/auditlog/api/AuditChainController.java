@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -25,6 +26,7 @@ public class AuditChainController {
     private final AuditEventChainVerificationService auditEventChainVerificationService;
 
     @GetMapping("/verify")
+    @PreAuthorize("hasRole('AUDITOR')")
     @Operation(summary = "Verify chain integrity", description = "Verify the entire audit event chain or last N records")
     @ApiResponses(value = {
         @ApiResponse(responseCode = "200", description = "Verification complete",

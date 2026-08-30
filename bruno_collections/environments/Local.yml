@@ -3,9 +3,15 @@ variables:
   - name: baseUrl
     value: http://localhost:8080
     description: ""
-  - name: apiKey
-    value: local-compose-key-change-me
-    description: ""
+  - name: writerApiKey
+    value: local-compose-writer-key-change-me
+    description: "RBAC: create audit events only"
+  - name: auditorApiKey
+    value: local-compose-auditor-key-change-me
+    description: "RBAC: read-only - query, verify, export, verify export"
+  - name: adminApiKey
+    value: local-compose-admin-key-change-me
+    description: "RBAC: retention archival + redaction (also implies auditor/writer)"
   - name: sequenceId
     value: "1"
     description: ""

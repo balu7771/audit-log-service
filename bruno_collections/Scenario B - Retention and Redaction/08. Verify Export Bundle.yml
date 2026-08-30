@@ -25,6 +25,9 @@ http:
           "value": "REPLACE_WITH_VALUE_FROM_EXPORT_RESPONSE"
         }
       }
+  headers:
+    - name: X-API-Key
+      value: "{{auditorApiKey}}"
   auth: inherit
 
 settings:

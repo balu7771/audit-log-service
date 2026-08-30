@@ -4,10 +4,13 @@ info:
 
 request:
   auth: inherit
-  headers:
-    - name: X-API-Key
-      value: "{{apiKey}}"
 
 docs:
-  content: Extends Scenario A with retention/archival, redaction, and bulk export
+  content: |-
+    Extends Scenario A with retention/archival, redaction, and bulk export.
+
+    RBAC note: this folder spans all three roles - create (WRITER), archive
+    and redact (ADMIN), export/verify/query (AUDITOR) - each request sets its
+    own X-API-Key header ({{writerApiKey}}, {{adminApiKey}}, or
+    {{auditorApiKey}}) rather than inheriting one folder-wide key.
   type: text/markdown
