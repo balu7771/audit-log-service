@@ -48,53 +48,9 @@ public class AuditEventChainVerificationService {
             int originalIndex = startIndex + i;
             AuditEvent priorEvent = originalIndex > 0 ? allEvents.get(originalIndex - 1) : null;
 
-            // Sequence continuity - archived records are still part of the primary
-            // sequence and are walked exactly like non-archived ones; archiving
-            // never removes a row or changes its sequence_id, so this never
-            // false-positives on legitimately archived records.
-            long expectedSequenceId = priorEvent != null ? priorEvent.getSequenceId() + 1 : 1L;
-            if (event.getSequenceId() != expectedSequenceId) {
-                return recordViolation(totalRecords, priorEvent, i, archivedRecordsCount, VerificationResponse.ViolationDetail.builder()
-                    .sequenceId(event.getSequenceId())
-                    .violationType("SEQUENCE_GAP")
-                    .details("Expected sequence_id " + expectedSequenceId + ", but found " + event.getSequenceId())
-                    .build());
-            }
-
-            // contentHash - recomputed from the stored payload/fields
-            String computedContentHash = auditEventHasher.recomputeContentHashOnly(event);
-            if (!computedContentHash.equals(event.getContentHash())) {
-                return recordViolation(totalRecords, priorEvent, i, archivedRecordsCount, VerificationResponse.ViolationDetail.builder()
-                    .sequenceId(event.getSequenceId())
-                    .violationType("CONTENT_HASH_MISMATCH")
-                    .expectedValue(computedContentHash)
-                    .actualValue(event.getContentHash())
-                    .details("Payload or other content was modified")
-                    .build());
-            }
-
-            // recordHash = SHA-256(contentHash + previousHash)
-            String expectedPreviousHash = priorEvent != null ? priorEvent.getRecordHash() : GENESIS_PREVIOUS_HASH;
-            String computedRecordHash = computeRecordHash(event.getContentHash(), expectedPreviousHash);
-            if (!computedRecordHash.equals(event.getRecordHash())) {
-                return recordViolation(totalRecords, priorEvent, i, archivedRecordsCount, VerificationResponse.ViolationDetail.builder()
-                    .sequenceId(event.getSequenceId())
-                    .violationType("RECORD_HASH_MISMATCH")
-                    .expectedValue(computedRecordHash)
-                    .actualValue(event.getRecordHash())
-                    .details("Record hash does not match expected value")
-                    .build());
-            }
-
-            // previousHash link to prior record
-            if (!expectedPreviousHash.equals(event.getPreviousHash())) {
-                return recordViolation(totalRecords, priorEvent, i, archivedRecordsCount, VerificationResponse.ViolationDetail.builder()
-                    .sequenceId(event.getSequenceId())
-                    .violationType("PREVIOUS_HASH_MISMATCH")
-                    .expectedValue(expectedPreviousHash)
-                    .actualValue(event.getPreviousHash())
-                    .details("Previous hash does not link to prior record")
-                    .build());
+            Optional<VerificationResponse.ViolationDetail> violation = detectViolation(event, priorEvent);
+            if (violation.isPresent()) {
+                return recordViolation(totalRecords, priorEvent, i, archivedRecordsCount, violation.get());
             }
         }
 
@@ -105,6 +61,62 @@ public class AuditEventChainVerificationService {
             .verifiedRecordsCount(eventsToVerify.size())
             .archivedRecordsCount(archivedRecordsCount)
             .build();
+    }
+
+    /**
+     * Checks one record against its predecessor across all four violation types.
+     * Sequence continuity is checked first: archived records are still part of
+     * the primary sequence and are walked exactly like non-archived ones -
+     * archiving never removes a row or changes its sequence_id, so this never
+     * false-positives on legitimately archived records.
+     */
+    private Optional<VerificationResponse.ViolationDetail> detectViolation(AuditEvent event, AuditEvent priorEvent) {
+        long expectedSequenceId = priorEvent != null ? priorEvent.getSequenceId() + 1 : 1L;
+        if (event.getSequenceId() != expectedSequenceId) {
+            return Optional.of(VerificationResponse.ViolationDetail.builder()
+                .sequenceId(event.getSequenceId())
+                .violationType("SEQUENCE_GAP")
+                .details("Expected sequence_id " + expectedSequenceId + ", but found " + event.getSequenceId())
+                .build());
+        }
+
+        // contentHash - recomputed from the stored payload/fields
+        String computedContentHash = auditEventHasher.recomputeContentHashOnly(event);
+        if (!computedContentHash.equals(event.getContentHash())) {
+            return Optional.of(VerificationResponse.ViolationDetail.builder()
+                .sequenceId(event.getSequenceId())
+                .violationType("CONTENT_HASH_MISMATCH")
+                .expectedValue(computedContentHash)
+                .actualValue(event.getContentHash())
+                .details("Payload or other content was modified")
+                .build());
+        }
+
+        // recordHash = SHA-256(contentHash + previousHash)
+        String expectedPreviousHash = priorEvent != null ? priorEvent.getRecordHash() : GENESIS_PREVIOUS_HASH;
+        String computedRecordHash = computeRecordHash(event.getContentHash(), expectedPreviousHash);
+        if (!computedRecordHash.equals(event.getRecordHash())) {
+            return Optional.of(VerificationResponse.ViolationDetail.builder()
+                .sequenceId(event.getSequenceId())
+                .violationType("RECORD_HASH_MISMATCH")
+                .expectedValue(computedRecordHash)
+                .actualValue(event.getRecordHash())
+                .details("Record hash does not match expected value")
+                .build());
+        }
+
+        // previousHash link to prior record
+        if (!expectedPreviousHash.equals(event.getPreviousHash())) {
+            return Optional.of(VerificationResponse.ViolationDetail.builder()
+                .sequenceId(event.getSequenceId())
+                .violationType("PREVIOUS_HASH_MISMATCH")
+                .expectedValue(expectedPreviousHash)
+                .actualValue(event.getPreviousHash())
+                .details("Previous hash does not link to prior record")
+                .build());
+        }
+
+        return Optional.empty();
     }
 
     private VerificationResponse recordViolation(long totalRecords, AuditEvent priorEvent, int verifiedCount,

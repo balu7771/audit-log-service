@@ -34,7 +34,12 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http, ApiKeyAuthFilter apiKeyAuthFilter) throws Exception {
         http
-            .csrf(csrf -> csrf.disable())
+            // CSRF protection defends against a browser silently replaying a cookie-borne
+            // session; this API is stateless (SessionCreationPolicy.STATELESS below) and
+            // authenticates via an X-API-Key header a browser can't attach automatically,
+            // so there is no ambient credential for CSRF to forge in the first place.
+            .csrf(csrf -> csrf.disable()) // NOSONAR java:S4502 - header-based auth, no cookies/sessions
+
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(PathRequest.toStaticResources().atCommonLocations()).permitAll()
