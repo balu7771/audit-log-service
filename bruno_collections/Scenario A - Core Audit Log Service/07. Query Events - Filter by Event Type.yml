@@ -16,6 +16,9 @@ http:
     - name: size
       value: "20"
       type: query
+  headers:
+    - name: X-API-Key
+      value: "{{auditorApiKey}}"
   auth: inherit
 
 settings:

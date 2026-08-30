@@ -46,15 +46,25 @@ Or run everything, including the app, inside Docker:
 docker compose up --build
 ```
 
-### Authentication
+### Authentication and RBAC
 
 Every `/audit/**` request requires an `X-API-Key` header (see
 [Assumptions & Trade-offs](docs/architecture/ASSUMPTIONS-AND-TRADEOFFS.md) for
-why this is a shared-secret gate rather than full auth). Locally it defaults
-to `local-dev-only-key-change-me` (from `application.yml`); override with the
-`AUDIT_API_KEY` environment variable for anything beyond local dev. `docker
-compose` sets it to `local-compose-key-change-me`. `/actuator/**` and the
-Swagger UI are not gated.
+why this is a shared-secret-per-role gate rather than full identity-aware
+auth). Each configured key is scoped to one of three roles
+(`audit.security.api-keys` in `application.yml`), so a regular event-producing
+caller and a compliance auditor are no longer the same all-access token:
+
+| Role | Can call | Local default (env var to override) |
+|---|---|---|
+| `WRITER` | `POST /audit/events` | `local-dev-writer-key-change-me` (`AUDIT_API_KEY_WRITER`) |
+| `AUDITOR` | `GET /audit/events`, `GET /audit/verify`, `GET /audit/export`, `POST /audit/export/verify` | `local-dev-auditor-key-change-me` (`AUDIT_API_KEY_AUDITOR`) |
+| `ADMIN` | `POST /audit/retention/archive`, `POST /audit/events/{id}/redactions` — plus everything `AUDITOR` and `WRITER` can (role hierarchy) | `local-dev-admin-key-change-me` (`AUDIT_API_KEY_ADMIN`) |
+
+`docker compose` sets `local-compose-{writer,auditor,admin}-key-change-me`. A
+request with a valid key but the wrong role gets `403 Forbidden`; a
+missing/unknown key gets `401 Unauthorized`. `/actuator/**` and the Swagger UI
+are not gated.
 
 ## API surface
 
@@ -85,19 +95,20 @@ directly in the data store → verify again to confirm detection.
 
 ```bash
 API=localhost:8080
-KEY="local-dev-only-key-change-me"   # or your AUDIT_API_KEY override
+WRITER_KEY="local-dev-writer-key-change-me"    # or your AUDIT_API_KEY_WRITER override
+AUDITOR_KEY="local-dev-auditor-key-change-me"  # or your AUDIT_API_KEY_AUDITOR override
 
-# 1. Write a couple of events
-curl -s -X POST $API/audit/events -H "X-API-Key: $KEY" -H "Content-Type: application/json" \
+# 1. Write a couple of events (WRITER role)
+curl -s -X POST $API/audit/events -H "X-API-Key: $WRITER_KEY" -H "Content-Type: application/json" \
   -d '{"eventType":"USER_LOGIN","actorId":"user-1","resourceType":"USER","resourceId":"user-1","payload":"{\"ip\":\"10.0.0.1\"}"}'
-curl -s -X POST $API/audit/events -H "X-API-Key: $KEY" -H "Content-Type: application/json" \
+curl -s -X POST $API/audit/events -H "X-API-Key: $WRITER_KEY" -H "Content-Type: application/json" \
   -d '{"eventType":"DATA_READ","actorId":"user-1","resourceType":"DOCUMENT","resourceId":"doc-1","payload":"{}"}'
 
-# 2. Query them back
-curl -s "$API/audit/events?actorId=user-1" -H "X-API-Key: $KEY"
+# 2. Query them back (AUDITOR role — WRITER_KEY would get 403 here)
+curl -s "$API/audit/events?actorId=user-1" -H "X-API-Key: $AUDITOR_KEY"
 
-# 3. Verify the chain is intact
-curl -s "$API/audit/verify" -H "X-API-Key: $KEY"   # -> "intact": true
+# 3. Verify the chain is intact (AUDITOR role)
+curl -s "$API/audit/verify" -H "X-API-Key: $AUDITOR_KEY"   # -> "intact": true
 
 # 4. Tamper directly in the data store.
 #    The audit_events table has a BEFORE UPDATE/DELETE trigger that rejects
@@ -111,7 +122,7 @@ docker compose exec postgres psql -U auditlog -d auditlog -c \
 
 # 5. Verify again — should report intact:false with the sequence_id and
 #    violation type (CONTENT_HASH_MISMATCH here) of the first inconsistency
-curl -s "$API/audit/verify" -H "X-API-Key: $KEY"
+curl -s "$API/audit/verify" -H "X-API-Key: $AUDITOR_KEY"
 ```
 
 If you skip step 4's `DISABLE TRIGGER`/`ENABLE TRIGGER` and try the `UPDATE`
@@ -123,40 +134,42 @@ directly, Postgres rejects it outright with `audit_events table is immutable`
 
 ```bash
 API=localhost:8080
-KEY="local-dev-only-key-change-me"
+WRITER_KEY="local-dev-writer-key-change-me"    # or your AUDIT_API_KEY_WRITER override
+AUDITOR_KEY="local-dev-auditor-key-change-me"  # or your AUDIT_API_KEY_AUDITOR override
+ADMIN_KEY="local-dev-admin-key-change-me"      # or your AUDIT_API_KEY_ADMIN override
 
-# 1. Write an event with a declared-sensitive field
-curl -s -X POST $API/audit/events -H "X-API-Key: $KEY" -H "Content-Type: application/json" \
+# 1. Write an event with a declared-sensitive field (WRITER role)
+curl -s -X POST $API/audit/events -H "X-API-Key: $WRITER_KEY" -H "Content-Type: application/json" \
   -d '{"eventType":"USER_UPDATED","actorId":"actor-1","resourceType":"USER","resourceId":"user-1",
        "payload":"{\"ssn\":\"123-45-6789\",\"name\":\"Jane\"}","sensitiveFields":["ssn"]}'
 # -> response payload shows the decrypted ssn; the DB row stores an AES-256-GCM ciphertext envelope instead
 
-# 2. Query it back — still decrypted, because the key hasn't been destroyed yet
-curl -s "$API/audit/events?resourceType=USER&resourceId=user-1" -H "X-API-Key: $KEY"
+# 2. Query it back — still decrypted, because the key hasn't been destroyed yet (AUDITOR role)
+curl -s "$API/audit/events?resourceType=USER&resourceId=user-1" -H "X-API-Key: $AUDITOR_KEY"
 
-# 3. Redact the field — permanently destroys its decryption key
-curl -s -X POST $API/audit/events/1/redactions -H "X-API-Key: $KEY" -H "Content-Type: application/json" \
+# 3. Redact the field — permanently destroys its decryption key (ADMIN role; AUDITOR_KEY gets 403 here)
+curl -s -X POST $API/audit/events/1/redactions -H "X-API-Key: $ADMIN_KEY" -H "Content-Type: application/json" \
   -d '{"fieldPath":"ssn","actorId":"compliance-officer","reason":"privacy request"}'
 
 # 4. Query again — the field now shows "[REDACTED]"; content_hash/record_hash for
 #    sequence_id=1 are byte-identical to before redaction (redaction never touched audit_events)
-curl -s "$API/audit/events?resourceType=USER&resourceId=user-1" -H "X-API-Key: $KEY"
+curl -s "$API/audit/events?resourceType=USER&resourceId=user-1" -H "X-API-Key: $AUDITOR_KEY"
 
 # 5. Verify — still intact, because redaction never touched the hash chain
-curl -s "$API/audit/verify" -H "X-API-Key: $KEY"   # -> "intact": true
+curl -s "$API/audit/verify" -H "X-API-Key: $AUDITOR_KEY"   # -> "intact": true
 
-# 6. Archive records older than a window (0 days archives everything eligible, for a quick demo)
-curl -s -X POST "$API/audit/retention/archive?windowDays=0" -H "X-API-Key: $KEY"
+# 6. Archive records older than a window (0 days archives everything eligible, for a quick demo) — ADMIN role
+curl -s -X POST "$API/audit/retention/archive?windowDays=0" -H "X-API-Key: $ADMIN_KEY"
 
 # 7. Verify again — still intact, and now reports archivedRecordsCount > 0
-curl -s "$API/audit/verify" -H "X-API-Key: $KEY"
+curl -s "$API/audit/verify" -H "X-API-Key: $AUDITOR_KEY"
 
-# 8. Export everything for the resource as a self-contained, verifiable bundle
-curl -s "$API/audit/export?resourceType=USER&resourceId=user-1" -H "X-API-Key: $KEY" > bundle.json
+# 8. Export everything for the resource as a self-contained, verifiable bundle (AUDITOR role)
+curl -s "$API/audit/export?resourceType=USER&resourceId=user-1" -H "X-API-Key: $AUDITOR_KEY" > bundle.json
 
 # 9. Verify the bundle independently — recomputes per-record hashes, the manifest
 #    hash, and the HMAC signature
-curl -s -X POST $API/audit/export/verify -H "X-API-Key: $KEY" -H "Content-Type: application/json" \
+curl -s -X POST $API/audit/export/verify -H "X-API-Key: $AUDITOR_KEY" -H "Content-Type: application/json" \
   -d @bundle.json   # -> "valid": true
 
 # 10. Tamper with the downloaded bundle file (e.g. edit a storedPayload value) and
@@ -168,18 +181,35 @@ curl -s -X POST $API/audit/export/verify -H "X-API-Key: $KEY" -H "Content-Type: 
 
 ```bash
 ./mvnw test      # unit tests only — no Docker required
-./mvnw verify    # unit + integration tests — requires Docker (Testcontainers)
+./mvnw verify    # unit + integration tests + coverage gate — requires Docker (Testcontainers)
 ```
 
-74 tests across 12 test classes cover: hash chain computation/canonicalization,
+89 tests across 13 test classes cover: hash chain computation/canonicalization,
 persistence, the write API, immutability enforcement (both the API's `405`s
 and the DB trigger, including its narrowed archival-only exception), query
 filters/pagination, all four chain-verification violation types (sequence
 gap, content-hash, record-hash, previous-hash mismatch) plus archived-record
-handling, the API-key filter, AES-256-GCM field encryption, redaction
-(idempotency, unknown-field validation, hash-chain non-impact), retention
-window archival, and export-bundle verification (per-record, manifest, and
-signature tampering).
+handling, the API-key filter, RBAC (each of the three roles against every
+endpoint — see `RoleBasedAccessControlTest`), AES-256-GCM field encryption,
+redaction (idempotency, unknown-field validation, hash-chain non-impact),
+retention window archival, and export-bundle verification (per-record,
+manifest, and signature tampering).
+
+### Code coverage and static analysis
+
+`./mvnw verify` runs JaCoCo across both unit and integration tests, merges
+the two exec files into one report, and **fails the build** if line coverage
+drops below 80% — config classes and request/response DTOs are excluded from
+the instrumentation (declarative bindings, not behavior to test). The
+HTML report lands at `target/site/jacoco/index.html`.
+
+```bash
+./mvnw verify
+open target/site/jacoco/index.html   # HTML coverage report
+```
+
+For static analysis (SonarQube) and container image scanning (Trivy), see
+[Quality gates](docs/architecture/QUALITY-GATES.md).
 
 ### Troubleshooting: truncating `audit_events` manually
 

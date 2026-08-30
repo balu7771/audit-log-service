@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -25,6 +26,7 @@ public class AuditExportController {
     private final AuditExportService auditExportService;
 
     @GetMapping
+    @PreAuthorize("hasRole('AUDITOR')")
     @Operation(summary = "Export records as a verifiable bundle",
         description = "Exports all records for a given actorId, or resourceType(+resourceId), as a self-contained hash-and-signature verifiable bundle")
     @ApiResponses(value = {
@@ -40,6 +42,7 @@ public class AuditExportController {
     }
 
     @PostMapping("/verify")
+    @PreAuthorize("hasRole('AUDITOR')")
     @Operation(summary = "Verify a previously exported bundle",
         description = "Recomputes per-record hashes, the manifest hash, and the HMAC signature to independently confirm nothing in the bundle was altered since export")
     @ApiResponses(value = {

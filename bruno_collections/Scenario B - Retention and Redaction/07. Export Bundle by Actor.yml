@@ -10,6 +10,9 @@ http:
     - name: actorId
       value: analyst@example.com
       type: query
+  headers:
+    - name: X-API-Key
+      value: "{{auditorApiKey}}"
   auth: inherit
 
 settings:

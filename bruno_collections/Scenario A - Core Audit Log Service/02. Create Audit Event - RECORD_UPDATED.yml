@@ -17,6 +17,9 @@ http:
         "payload": "{\"accountNumber\": \"****5678\", \"previousBalance\": 10000.50, \"newBalance\": 10500.75, \"updateReason\": \"deposit\"}",
         "sensitiveFields": ["accountNumber"]
       }
+  headers:
+    - name: X-API-Key
+      value: "{{writerApiKey}}"
   auth: inherit
 
 settings:

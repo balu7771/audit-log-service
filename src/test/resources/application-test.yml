@@ -4,7 +4,16 @@ spring:
 
 audit:
   security:
-    api-key: test-api-key
+    api-keys:
+      - key: test-writer-key
+        name: test-writer
+        roles: [WRITER]
+      - key: test-auditor-key
+        name: test-auditor
+        roles: [AUDITOR]
+      - key: test-admin-key
+        name: test-admin
+        roles: [ADMIN]
     export-signing-key: test-export-signing-key
   retention:
     window-days: 365

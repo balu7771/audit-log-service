@@ -79,20 +79,31 @@ a strict rule.
    or trust), but means a client that retries invalid requests grows the log
    it's supposedly being caught by, and there's no rate limiting or
    separate error channel if that becomes noisy.
-5. **Authentication is a single shared API key (`X-API-Key` header,
-   `ApiKeyAuthFilter`), not per-caller identity or roles.** A real production
-   audit log needs to know *which* caller wrote or read what — but adding
-   full authentication/authorization (OAuth/OIDC, per-service credentials,
-   RBAC) is a substantial scope increase relative to what this exercise asks
-   for ("no external application or consumer is required"). The chosen
-   middle ground: gate the API behind one static secret so it's not
-   wide open by default, and call out explicitly that this is *not* a
-   substitute for real identity-aware auth — `actorId` in a request body is
-   still self-reported by the caller and not verified against any
-   credential. A production rollout would need to replace this with
-   per-caller credentials (so `actorId` can be derived from, or at least
-   cross-checked against, an authenticated identity) before this could be
-   trusted as a real compliance-grade audit trail.
+5. **Authentication is per-role static API keys (`X-API-Key` header,
+   `ApiKeyAuthFilter` + Spring Security `@PreAuthorize`), not per-caller
+   identity.** Earlier revisions used one shared secret for every caller —
+   flawed, because it meant an event-producing service and a read-only
+   compliance auditor held the exact same all-access credential, with no
+   separation of duties between "can write" and "can read/export/archive/
+   redact." This is now RBAC across three roles (`WRITER`, `AUDITOR`,
+   `ADMIN` — see `ApiRole`, `AuditApiKeyProperties`, `SecurityConfig`; the
+   README's Authentication and RBAC section has the full endpoint-to-role
+   table), with `ADMIN` implied to also hold `AUDITOR` and `WRITER` via a
+   role hierarchy (an operator trusted to archive/redact is also trusted to
+   read and write). This closes the biggest gap (no separation of duties)
+   without taking on full authentication/authorization (OAuth/OIDC,
+   per-service credentials, a user directory) — still a substantial scope
+   increase relative to what this exercise asks for ("no external
+   application or consumer is required"). What RBAC over static keys does
+   **not** give you: per-caller identity. Every `WRITER`-role caller shares
+   one secret and is indistinguishable from every other `WRITER` caller in
+   the audit trail itself — `actorId` in a request body is still
+   self-reported and not verified against any credential. A production
+   rollout would need per-caller credentials (so `actorId` can be derived
+   from, or at least cross-checked against, an authenticated identity, and
+   a compromised key can be revoked individually rather than rotated for
+   every caller sharing that role) before this could be trusted as a real
+   compliance-grade audit trail.
 6. **No validation that `payload` is well-formed JSON before it reaches the
    database.** `AuditEventHasher.parseJsonIfString` falls back to hashing the
    raw string if parsing fails, but the JSONB column still rejects malformed

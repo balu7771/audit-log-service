@@ -16,6 +16,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
@@ -32,6 +33,7 @@ public class AuditEventController {
     private final PayloadRedactionService payloadRedactionService;
 
     @PostMapping
+    @PreAuthorize("hasRole('WRITER')")
     @Operation(summary = "Create audit event", description = "Create a new immutable audit event with hash chain linkage")
     @ApiResponses(value = {
         @ApiResponse(responseCode = "201", description = "Event created successfully",
@@ -45,6 +47,7 @@ public class AuditEventController {
     }
 
     @GetMapping
+    @PreAuthorize("hasRole('AUDITOR')")
     @Operation(summary = "Query audit events", description = "Query audit events with optional filters and pagination")
     @ApiResponses(value = {
         @ApiResponse(responseCode = "200", description = "Query successful",

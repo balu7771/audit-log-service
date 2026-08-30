@@ -26,8 +26,11 @@ services:
       SPRING_DATASOURCE_USERNAME: auditlog
       SPRING_DATASOURCE_PASSWORD: auditlog
       SPRING_JPA_HIBERNATE_DDL_AUTO: validate
-      # Example only — replace with real secrets for anything beyond local dev.
-      AUDIT_API_KEY: local-compose-key-change-me
+      # Example only — replace with real, per-caller secrets for anything beyond local dev.
+      # Each key is scoped to one RBAC role; see application.yml / SecurityConfig.
+      AUDIT_API_KEY_WRITER: local-compose-writer-key-change-me
+      AUDIT_API_KEY_AUDITOR: local-compose-auditor-key-change-me
+      AUDIT_API_KEY_ADMIN: local-compose-admin-key-change-me
       AUDIT_EXPORT_SIGNING_KEY: local-compose-export-key-change-me
     ports:
       - "8080:8080"

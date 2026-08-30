@@ -6,6 +6,9 @@ info:
 http:
   method: GET
   url: "{{baseUrl}}/audit/verify"
+  headers:
+    - name: X-API-Key
+      value: "{{auditorApiKey}}"
   auth: inherit
 
 settings:

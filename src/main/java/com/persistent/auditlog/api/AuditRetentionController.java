@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -25,6 +26,7 @@ public class AuditRetentionController {
     private final AuditEventRetentionService auditEventRetentionService;
 
     @PostMapping("/archive")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Archive eligible records",
         description = "Soft-archives (archived_at flag) records older than the retention window; the hash chain is never touched")
     @ApiResponses(value = {

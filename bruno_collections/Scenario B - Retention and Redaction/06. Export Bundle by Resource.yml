@@ -13,6 +13,9 @@ http:
     - name: resourceId
       value: cust-1001
       type: query
+  headers:
+    - name: X-API-Key
+      value: "{{auditorApiKey}}"
   auth: inherit
 
 settings:

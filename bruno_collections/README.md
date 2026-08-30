@@ -404,7 +404,10 @@ While Bruno is the native format, you can use this collection in Postman:
 
 ### Request Errors
 - **400 Bad Request**: Check required fields, parameter types
-- **401 Unauthorized**: Verify authentication if enabled
+- **401 Unauthorized**: `X-API-Key` header missing or the key isn't one of `audit.security.api-keys`
+- **403 Forbidden**: The key is valid but its role doesn't permit this operation - e.g.
+  `writerApiKey` can't query/export, `auditorApiKey` can't create/archive/redact. Use the
+  key matching the role noted on that request (see Security Notes below)
 - **404 Not Found**: Verify endpoint exists in Swagger UI
 - **500 Server Error**: Check service logs
 
@@ -421,7 +424,12 @@ While Bruno is the native format, you can use this collection in Postman:
 ## Security Notes
 
 - **Never commit sensitive data**: API payloads may contain real data
-- **Use environment variables**: Store `baseUrl` and `apiKey` in Bruno environment
+- **Use environment variables**: Store `baseUrl`, `writerApiKey`, `auditorApiKey`, and
+  `adminApiKey` in Bruno environment (see `environments/Local.yml`)
+- **RBAC, not one shared key**: each request sets the `X-API-Key` header to the key for
+  the role it needs (WRITER to create events, AUDITOR to query/verify/export, ADMIN to
+  archive/redact) instead of reusing one all-access token across every request - see
+  `docs/architecture/ASSUMPTIONS-AND-TRADEOFFS.md` for the role model
 - **HTTPS in production**: Local development uses HTTP, use HTTPS for production
 - **Rate limiting**: Service may enforce rate limits on bulk operations
 - **Access control**: Verify authorization to perform operations

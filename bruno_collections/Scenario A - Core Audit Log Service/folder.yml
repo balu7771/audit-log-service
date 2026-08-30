@@ -4,10 +4,14 @@ info:
 
 request:
   auth: inherit
-  headers:
-    - name: X-API-Key
-      value: "{{apiKey}}"
 
 docs:
-  content: Greenfield core audit log service - write, query, and hash-chain verify
+  content: |-
+    Greenfield core audit log service - write, query, and hash-chain verify.
+
+    RBAC note: this folder mixes a write operation (create, WRITER role) with
+    read operations (query, verify chain, AUDITOR role) - each request sets
+    its own X-API-Key header ({{writerApiKey}} or {{auditorApiKey}}) rather
+    than inheriting one folder-wide key, since a single shared token across
+    both roles would defeat the RBAC boundary it's meant to demonstrate.
   type: text/markdown

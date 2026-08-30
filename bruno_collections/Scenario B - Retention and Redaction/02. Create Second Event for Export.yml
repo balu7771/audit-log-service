@@ -17,6 +17,9 @@ http:
         "payload": "{\"accountStatus\": \"active\", \"billingAddress\": \"123 Main St\", \"phoneNumber\": \"+1-555-1234\", \"ssn\": \"***-**-7890\"}",
         "sensitiveFields": ["phoneNumber", "ssn"]
       }
+  headers:
+    - name: X-API-Key
+      value: "{{writerApiKey}}"
   auth: inherit
 
 settings:

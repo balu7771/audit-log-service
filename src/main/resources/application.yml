@@ -19,10 +19,23 @@ server:
 
 audit:
   security:
-    # Shared-secret required on every /audit/** request via the X-API-Key header.
-    # Override via AUDIT_API_KEY in any real deployment; the fallback below is
-    # for local docker-compose/dev use only.
-    api-key: ${AUDIT_API_KEY:local-dev-only-key-change-me}
+    # Per-caller API keys, each scoped to the roles it is trusted for (RBAC):
+    #   WRITER  - create audit events only (event-producing services)
+    #   AUDITOR - read-only: query, chain verification, export, export verification
+    #   ADMIN   - retention archival + field redaction (implies AUDITOR and WRITER too;
+    #             see SecurityConfig's role hierarchy)
+    # Override every key via its AUDIT_API_KEY_* env var in any real deployment; the
+    # fallbacks below are for local dev only and must never be reused elsewhere.
+    api-keys:
+      - key: ${AUDIT_API_KEY_WRITER:local-dev-writer-key-change-me}
+        name: default-writer
+        roles: [WRITER]
+      - key: ${AUDIT_API_KEY_AUDITOR:local-dev-auditor-key-change-me}
+        name: default-auditor
+        roles: [AUDITOR]
+      - key: ${AUDIT_API_KEY_ADMIN:local-dev-admin-key-change-me}
+        name: default-admin
+        roles: [ADMIN]
     # HMAC-SHA256 key used to sign/verify export bundle manifests. Override via
     # AUDIT_EXPORT_SIGNING_KEY in any real deployment.
     export-signing-key: ${AUDIT_EXPORT_SIGNING_KEY:local-dev-only-export-key-change-me}

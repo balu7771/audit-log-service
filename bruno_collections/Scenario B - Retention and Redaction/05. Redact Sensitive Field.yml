@@ -14,6 +14,9 @@ http:
         "actorId": "compliance@example.com",
         "reason": "GDPR-data-subject-right-to-be-forgotten"
       }
+  headers:
+    - name: X-API-Key
+      value: "{{adminApiKey}}"
   auth: inherit
 
 settings:
